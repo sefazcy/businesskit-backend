@@ -7,7 +7,7 @@
 .env
 
 # User-specific files
-*.rsuser
+*.rsuserhttps://localhost:xxxx
 *.suo
 *.user
 *.userosscache
@@ -482,3 +482,9 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# SQLite local database files
+*.db
+*.db-shm
+*.db-wal
+
