@@ -1,7 +1,9 @@
 using System.Text;
 using BusinessKit.Application.Auth;
+using BusinessKit.Application.UserManagement;
 using BusinessKit.Infrastructure.Auth;
 using BusinessKit.Infrastructure.Data;
+using BusinessKit.Infrastructure.UserManagement;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -72,6 +74,10 @@ builder.Services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<DataSeeder>();
+
+// User management services
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
 
 var app = builder.Build();
 
