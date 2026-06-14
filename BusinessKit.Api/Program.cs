@@ -1,7 +1,9 @@
 using System.Text;
 using BusinessKit.Application.Auth;
+using BusinessKit.Application.BusinessSettings;
 using BusinessKit.Application.UserManagement;
 using BusinessKit.Infrastructure.Auth;
+using BusinessKit.Infrastructure.BusinessSettings;
 using BusinessKit.Infrastructure.Data;
 using BusinessKit.Infrastructure.UserManagement;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -78,6 +80,9 @@ builder.Services.AddScoped<DataSeeder>();
 // User management services
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
+
+// Business settings service
+builder.Services.AddScoped<IBusinessSettingsService, BusinessSettingsService>();
 
 var app = builder.Build();
 

@@ -1,5 +1,6 @@
 using BusinessKit.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using BusinessSettingsEntity = BusinessKit.Domain.Entities.BusinessSettings;
 
 namespace BusinessKit.Infrastructure.Data;
 
@@ -10,7 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<UserRole> UserRoles { get; set; } = null!;
-    public DbSet<BusinessSettings> BusinessSettings { get; set; } = null!;
+    public DbSet<BusinessSettingsEntity> BusinessSettings { get; set; } = null!;
     public DbSet<BusinessService> BusinessServices { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

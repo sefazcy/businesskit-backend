@@ -1,12 +1,12 @@
-using BusinessKit.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using BusinessSettingsEntity = BusinessKit.Domain.Entities.BusinessSettings;
 
 namespace BusinessKit.Infrastructure.Data.Configurations;
 
-public class BusinessSettingsConfiguration : IEntityTypeConfiguration<BusinessSettings>
+public class BusinessSettingsConfiguration : IEntityTypeConfiguration<BusinessSettingsEntity>
 {
-    public void Configure(EntityTypeBuilder<BusinessSettings> builder)
+    public void Configure(EntityTypeBuilder<BusinessSettingsEntity> builder)
     {
         builder.HasKey(b => b.Id);
 
@@ -28,6 +28,9 @@ public class BusinessSettingsConfiguration : IEntityTypeConfiguration<BusinessSe
 
         builder.Property(b => b.WhatsApp)
             .HasMaxLength(30);
+
+        builder.Property(b => b.LinkedInUrl)
+            .HasMaxLength(500);
 
         builder.Property(b => b.Currency)
             .IsRequired()
