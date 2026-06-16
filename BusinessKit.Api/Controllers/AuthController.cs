@@ -7,7 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace BusinessKit.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/auth")]
+[Tags("Auth")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;

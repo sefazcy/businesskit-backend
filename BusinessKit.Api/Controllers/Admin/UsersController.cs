@@ -10,6 +10,7 @@ namespace BusinessKit.Api.Controllers.Admin;
 [ApiController]
 [Route("api/admin/users")]
 [Authorize(Roles = Roles.Admin)]
+[Tags("Users (Admin)")]
 public class UsersController : ControllerBase
 {
     private readonly IUserManagementService _userManagementService;

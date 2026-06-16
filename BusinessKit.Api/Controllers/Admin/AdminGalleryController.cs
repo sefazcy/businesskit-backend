@@ -9,6 +9,7 @@ namespace BusinessKit.Api.Controllers.Admin;
 [ApiController]
 [Route("api/admin/gallery")]
 [Authorize(Roles = Roles.Admin)]
+[Tags("Gallery (Admin)")]
 public class AdminGalleryController : ControllerBase
 {
     private readonly IGalleryService _galleryService;

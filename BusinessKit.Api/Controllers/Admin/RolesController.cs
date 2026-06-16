@@ -8,6 +8,7 @@ namespace BusinessKit.Api.Controllers.Admin;
 [ApiController]
 [Route("api/admin/roles")]
 [Authorize(Roles = Roles.Admin)]
+[Tags("Roles (Admin)")]
 public class RolesController : ControllerBase
 {
     private readonly IRoleService _roleService;

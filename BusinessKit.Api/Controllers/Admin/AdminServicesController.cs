@@ -10,6 +10,7 @@ namespace BusinessKit.Api.Controllers.Admin;
 [ApiController]
 [Route("api/admin/services")]
 [Authorize(Roles = Roles.Admin)]
+[Tags("Services (Admin)")]
 public class AdminServicesController : ControllerBase
 {
     private readonly IServiceCatalogService _serviceCatalogService;

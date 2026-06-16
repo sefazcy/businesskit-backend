@@ -10,6 +10,7 @@ namespace BusinessKit.Api.Controllers.Admin;
 [ApiController]
 [Route("api/admin/blog")]
 [Authorize(Roles = Roles.Admin)]
+[Tags("Blog (Admin)")]
 public class AdminBlogController : ControllerBase
 {
     private readonly IBlogService _blogService;

@@ -9,6 +9,7 @@ namespace BusinessKit.Api.Controllers.Admin;
 [ApiController]
 [Route("api/admin/business-settings")]
 [Authorize(Roles = Roles.Admin)]
+[Tags("Business Settings (Admin)")]
 public class AdminBusinessSettingsController : ControllerBase
 {
     private readonly IBusinessSettingsService _businessSettingsService;

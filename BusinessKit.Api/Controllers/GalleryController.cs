@@ -5,6 +5,7 @@ namespace BusinessKit.Api.Controllers;
 
 [ApiController]
 [Route("api/gallery")]
+[Tags("Gallery (Public)")]
 public class GalleryController : ControllerBase
 {
     private readonly IGalleryService _galleryService;

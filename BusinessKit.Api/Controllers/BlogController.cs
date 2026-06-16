@@ -5,6 +5,7 @@ namespace BusinessKit.Api.Controllers;
 
 [ApiController]
 [Route("api/blog")]
+[Tags("Blog (Public)")]
 public class BlogController : ControllerBase
 {
     private readonly IBlogService _blogService;

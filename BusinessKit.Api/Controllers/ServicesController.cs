@@ -5,6 +5,7 @@ namespace BusinessKit.Api.Controllers;
 
 [ApiController]
 [Route("api/services")]
+[Tags("Services (Public)")]
 public class ServicesController : ControllerBase
 {
     private readonly IServiceCatalogService _serviceCatalogService;

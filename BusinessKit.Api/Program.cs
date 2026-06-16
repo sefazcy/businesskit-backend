@@ -113,10 +113,26 @@ using (var scope = app.Services.CreateScope())
     await seeder.SeedAsync();
 }
 
+// Minimal top-level safety net for unexpected errors.
+// Expected domain errors (duplicate email/slug, invalid role, etc.) are still
+// handled by each controller's own try/catch and are not affected by this.
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+else
+{
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new { message = "An unexpected error occurred." });
+        });
+    });
 }
 
 app.UseHttpsRedirection();

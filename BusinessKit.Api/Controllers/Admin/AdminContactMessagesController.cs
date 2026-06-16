@@ -8,6 +8,7 @@ namespace BusinessKit.Api.Controllers.Admin;
 [ApiController]
 [Route("api/admin/contact-messages")]
 [Authorize(Roles = Roles.Admin)]
+[Tags("Contact Messages (Admin)")]
 public class AdminContactMessagesController : ControllerBase
 {
     private readonly IContactMessageService _contactMessageService;

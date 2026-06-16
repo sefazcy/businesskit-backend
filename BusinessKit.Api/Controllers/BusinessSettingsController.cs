@@ -5,6 +5,7 @@ namespace BusinessKit.Api.Controllers;
 
 [ApiController]
 [Route("api/business-settings")]
+[Tags("Business Settings (Public)")]
 public class BusinessSettingsController : ControllerBase
 {
     private readonly IBusinessSettingsService _businessSettingsService;

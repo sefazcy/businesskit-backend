@@ -6,6 +6,7 @@ namespace BusinessKit.Api.Controllers;
 
 [ApiController]
 [Route("api/contact-messages")]
+[Tags("Contact Messages (Public)")]
 public class ContactMessagesController : ControllerBase
 {
     private readonly IContactMessageService _contactMessageService;

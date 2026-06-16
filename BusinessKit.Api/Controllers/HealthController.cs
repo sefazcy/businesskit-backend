@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace BusinessKit.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/health")]
+[Tags("Health")]
 public class HealthController : ControllerBase
 {
     [HttpGet]
