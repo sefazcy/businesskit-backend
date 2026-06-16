@@ -488,3 +488,8 @@ $RECYCLE.BIN/
 *.db-shm
 *.db-wal
 
+# Uploaded user content — never commit
+# Use * (not trailing /) so git can still list directories and honour the negation below
+BusinessKit.Api/wwwroot/uploads/images/*
+!BusinessKit.Api/wwwroot/uploads/images/.gitkeep
+

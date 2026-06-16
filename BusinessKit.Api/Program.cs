@@ -5,6 +5,7 @@ using BusinessKit.Application.BusinessSettings;
 using BusinessKit.Application.ContactMessages;
 using BusinessKit.Application.Gallery;
 using BusinessKit.Application.ServiceCatalog;
+using BusinessKit.Application.Uploads;
 using BusinessKit.Application.UserManagement;
 using BusinessKit.Infrastructure.Auth;
 using BusinessKit.Infrastructure.Blog;
@@ -13,6 +14,7 @@ using BusinessKit.Infrastructure.ContactMessages;
 using BusinessKit.Infrastructure.Data;
 using BusinessKit.Infrastructure.Gallery;
 using BusinessKit.Infrastructure.ServiceCatalog;
+using BusinessKit.Infrastructure.Uploads;
 using BusinessKit.Infrastructure.UserManagement;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -104,6 +106,14 @@ builder.Services.AddScoped<IGalleryService, GalleryService>();
 // Blog service
 builder.Services.AddScoped<IBlogService, BlogService>();
 
+// File upload service
+builder.Services.AddScoped<IFileUploadService>(_ =>
+{
+    var webRootPath = builder.Environment.WebRootPath
+        ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
+    return new LocalFileUploadService(Path.Combine(webRootPath, "uploads", "images"));
+});
+
 var app = builder.Build();
 
 // Run development data seeder before accepting requests
@@ -136,6 +146,7 @@ else
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseAuthentication(); // Must come before UseAuthorization
 app.UseAuthorization();
 app.MapControllers();
