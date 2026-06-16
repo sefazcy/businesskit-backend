@@ -1,10 +1,12 @@
 using System.Text;
 using BusinessKit.Application.Auth;
 using BusinessKit.Application.BusinessSettings;
+using BusinessKit.Application.ContactMessages;
 using BusinessKit.Application.ServiceCatalog;
 using BusinessKit.Application.UserManagement;
 using BusinessKit.Infrastructure.Auth;
 using BusinessKit.Infrastructure.BusinessSettings;
+using BusinessKit.Infrastructure.ContactMessages;
 using BusinessKit.Infrastructure.Data;
 using BusinessKit.Infrastructure.ServiceCatalog;
 using BusinessKit.Infrastructure.UserManagement;
@@ -88,6 +90,9 @@ builder.Services.AddScoped<IBusinessSettingsService, BusinessSettingsService>();
 
 // Service catalog service
 builder.Services.AddScoped<IServiceCatalogService, ServiceCatalogService>();
+
+// Contact message service
+builder.Services.AddScoped<IContactMessageService, ContactMessageService>();
 
 var app = builder.Build();
 
