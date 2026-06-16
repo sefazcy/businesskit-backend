@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     public DbSet<BusinessSettingsEntity> BusinessSettings { get; set; } = null!;
     public DbSet<BusinessService> BusinessServices { get; set; } = null!;
     public DbSet<ContactMessage> ContactMessages { get; set; } = null!;
+    public DbSet<GalleryItem> GalleryItems { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -2,12 +2,14 @@ using System.Text;
 using BusinessKit.Application.Auth;
 using BusinessKit.Application.BusinessSettings;
 using BusinessKit.Application.ContactMessages;
+using BusinessKit.Application.Gallery;
 using BusinessKit.Application.ServiceCatalog;
 using BusinessKit.Application.UserManagement;
 using BusinessKit.Infrastructure.Auth;
 using BusinessKit.Infrastructure.BusinessSettings;
 using BusinessKit.Infrastructure.ContactMessages;
 using BusinessKit.Infrastructure.Data;
+using BusinessKit.Infrastructure.Gallery;
 using BusinessKit.Infrastructure.ServiceCatalog;
 using BusinessKit.Infrastructure.UserManagement;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -93,6 +95,9 @@ builder.Services.AddScoped<IServiceCatalogService, ServiceCatalogService>();
 
 // Contact message service
 builder.Services.AddScoped<IContactMessageService, ContactMessageService>();
+
+// Gallery service
+builder.Services.AddScoped<IGalleryService, GalleryService>();
 
 var app = builder.Build();
 
