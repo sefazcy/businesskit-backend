@@ -162,6 +162,7 @@ including request/response shapes.
 | v1.5 | Available Slot Calculation Foundation: public `GET /api/availability/slots` returns available time slots for a staff member on a given date; respects staff working hours (start/end time, IsWorkingDay, break window); excludes slots blocked by Pending or Confirmed appointments; slot duration defaults to 30 min or uses `BusinessService.DurationMinutes` when `businessServiceId` is supplied — **simple foundation only**: no holidays/exceptions, no multi-slot conflict duration, no staff-service assignment, no calendar sync, no time zones |
 | v1.6 | Appointment Creation Availability Validation: `POST /api/appointments` now validates the requested time against staff working hours when `staffMemberId` is provided — checks the staff working hour record for that day, blocks creation on non-working days (400), outside working hours (400), during the break window (400), and at a time already held by a Pending or Confirmed appointment (409); Cancelled and Completed appointments do not block the slot; requests with no `staffMemberId` bypass availability checks and are still accepted as generic appointment requests — exact-time conflict only, no duration-based overlap engine yet |
 | v1.7 | Appointment Admin Polish: `GET /api/admin/appointments` gains `startDate`/`endDate` range filters; combining `date` with `startDate`/`endDate` returns 400 to avoid ambiguity; new `GET /appointments/today` returns today's appointments with optional status/staff/service filters; new `GET /appointments/upcoming` returns appointments from today onward with optional `days` parameter (default 7, value ≤ 0 returns 400); new `GET /appointments/stats` returns totals by status plus today-count and upcoming-7-day count with optional staffMember/service/date-range filters; all existing detail/status/update endpoints unchanged — no duration-based conflict logic, no notifications, no calendar sync, no payments, no multi-tenancy |
+| v1.8 | Duration-Based Appointment Conflict Logic: availability slots now respect the full service duration — the last slot is only included if `slotStart + duration ≤ workEnd`; break-time exclusion is now interval-based (`slotStart < breakEnd && slotEnd > breakStart`) instead of point-in-time; existing appointments block a range equal to their own service duration (defaulting to 30 min), so a 60-minute appointment at 10:00 blocks 10:00–11:00 and prevents new appointments at 10:30; `POST /api/appointments` applies the same duration-aware overlap check when `staffMemberId` is provided — outside-hours (duration end exceeds work end) and break-overlap return 400, scheduling conflict returns 409; Cancelled and Completed appointments still do not block; requests without `staffMemberId` still bypass availability checks — no new tables, no migrations, no holidays/exceptions, no calendar sync, no notifications, no payments, no multi-tenancy |
 
 ## Notes on Secrets
 
@@ -186,10 +187,10 @@ expected to be addressed in future versions:
 - Full appointment scheduling engine: v1.3 provides appointment requests,
   v1.4 provides staff working hours definitions, v1.5 provides available slot
   calculation, v1.6 validates appointment creation against staff availability,
-  v1.7 adds admin listing/today/upcoming/stats polish — still not implemented:
-  duration-based multi-slot conflict detection, holidays and date exceptions,
-  staff-service assignment, booking rules, calendar sync (e.g. Google Calendar),
-  notifications (email/SMS), payments, and time zone handling
+  v1.7 adds admin listing/today/upcoming/stats polish, v1.8 adds duration-based
+  multi-slot conflict detection — still not implemented: holidays and date
+  exceptions, staff-service assignment, booking rules, calendar sync (e.g. Google
+  Calendar), notifications (email/SMS), payments, and time zone handling
 - QR-code menus
 - Orders and payments
 - CRM / customer management

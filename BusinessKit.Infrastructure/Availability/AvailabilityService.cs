@@ -82,27 +82,25 @@ public class AvailabilityService : IAvailabilityService
             breakEnd = parsedBreakEnd;
         }
 
-        var blockedTimes = await GetBlockedTimesAsync(staffMemberId, date);
+        var blockedIntervals = await GetBlockedIntervalsAsync(staffMemberId, date);
 
         var slots = new List<AvailableSlotDto>();
         var current = startTime;
         var duration = TimeSpan.FromMinutes(slotDuration);
 
-        while (current < endTime)
+        while (current + duration <= endTime)
         {
+            var slotEnd = current + duration;
+
             if (breakStart.HasValue && breakEnd.HasValue &&
-                current >= breakStart.Value && current < breakEnd.Value)
+                current < breakEnd.Value && slotEnd > breakStart.Value)
             {
                 current += duration;
                 continue;
             }
 
-            var timeString = $"{current.Hours:D2}:{current.Minutes:D2}";
-
-            if (!blockedTimes.Contains(timeString))
-            {
-                slots.Add(new AvailableSlotDto { Time = timeString, IsAvailable = true });
-            }
+            if (!blockedIntervals.Any(b => current < b.End && slotEnd > b.Start))
+                slots.Add(new AvailableSlotDto { Time = $"{current.Hours:D2}:{current.Minutes:D2}", IsAvailable = true });
 
             current += duration;
         }
@@ -111,27 +109,33 @@ public class AvailabilityService : IAvailabilityService
         return baseResponse;
     }
 
-    private async Task<HashSet<string>> GetBlockedTimesAsync(int staffMemberId, DateTime date)
+    private async Task<List<(TimeSpan Start, TimeSpan End)>> GetBlockedIntervalsAsync(int staffMemberId, DateTime date)
     {
         var dateOnly = date.Date;
 
-        var bookedTimes = await _context.Appointments
+        var appointments = await _context.Appointments
+            .Include(a => a.BusinessService)
             .Where(a =>
                 a.StaffMemberId == staffMemberId &&
                 a.RequestedDate.Date == dateOnly &&
                 (a.Status == AppointmentStatuses.Pending || a.Status == AppointmentStatuses.Confirmed))
-            .Select(a => a.RequestedTime)
             .ToListAsync();
 
-        var blocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var intervals = new List<(TimeSpan Start, TimeSpan End)>();
 
-        foreach (var time in bookedTimes)
+        foreach (var appt in appointments)
         {
-            if (TimeSpan.TryParse(time, out var parsed))
-                blocked.Add($"{parsed.Hours:D2}:{parsed.Minutes:D2}");
+            if (!TimeSpan.TryParse(appt.RequestedTime, out var apptStart))
+                continue;
+
+            var apptDuration = appt.BusinessService?.DurationMinutes > 0
+                ? appt.BusinessService.DurationMinutes
+                : DefaultSlotDurationMinutes;
+
+            intervals.Add((apptStart, apptStart + TimeSpan.FromMinutes(apptDuration)));
         }
 
-        return blocked;
+        return intervals;
     }
 
     private static int ToProjectDayOfWeek(DayOfWeek dotNetDayOfWeek) => dotNetDayOfWeek switch

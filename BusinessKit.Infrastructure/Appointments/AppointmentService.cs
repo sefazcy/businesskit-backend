@@ -10,6 +10,8 @@ namespace BusinessKit.Infrastructure.Appointments;
 
 public class AppointmentService : IAppointmentService
 {
+    private const int DefaultSlotDurationMinutes = 30;
+
     private readonly AppDbContext _context;
 
     public AppointmentService(AppDbContext context)
@@ -23,7 +25,7 @@ public class AppointmentService : IAppointmentService
         await ValidateBusinessServiceAsync(dto.BusinessServiceId);
 
         if (dto.StaffMemberId.HasValue)
-            await ValidateAppointmentAvailabilityAsync(dto.StaffMemberId.Value, dto.RequestedDate, dto.RequestedTime);
+            await ValidateAppointmentAvailabilityAsync(dto.StaffMemberId.Value, dto.RequestedDate, dto.RequestedTime, dto.BusinessServiceId);
 
         var appointment = new Appointment
         {
@@ -268,13 +270,28 @@ public class AppointmentService : IAppointmentService
         };
     }
 
-    private async Task ValidateAppointmentAvailabilityAsync(int staffMemberId, DateTime requestedDate, string requestedTime)
+    private async Task ValidateAppointmentAvailabilityAsync(
+        int staffMemberId,
+        DateTime requestedDate,
+        string requestedTime,
+        int? businessServiceId)
     {
         if (!TimeSpan.TryParse(requestedTime, out var requestedTs))
             throw new InvalidAppointmentTimeException(
                 $"RequestedTime '{requestedTime}' is not a valid time. Use format HH:mm, e.g. '09:00'.");
 
         var normalizedRequest = $"{requestedTs.Hours:D2}:{requestedTs.Minutes:D2}";
+
+        var durationMinutes = DefaultSlotDurationMinutes;
+        if (businessServiceId.HasValue)
+        {
+            var service = await _context.BusinessServices.FindAsync(businessServiceId.Value);
+            if (service != null && service.DurationMinutes > 0)
+                durationMinutes = service.DurationMinutes;
+        }
+
+        var duration = TimeSpan.FromMinutes(durationMinutes);
+        var requestedEnd = requestedTs + duration;
 
         var projectDay = ToProjectDayOfWeek(requestedDate.DayOfWeek);
 
@@ -290,7 +307,7 @@ public class AppointmentService : IAppointmentService
             throw new InvalidAppointmentTimeException(
                 "Staff working hours are not configured correctly for this day.");
 
-        if (requestedTs < startTs || requestedTs >= endTs)
+        if (requestedTs < startTs || requestedEnd > endTs)
             throw new InvalidAppointmentTimeException(
                 $"Requested time '{normalizedRequest}' is outside working hours ({workingHour.StartTime}–{workingHour.EndTime}).");
 
@@ -300,22 +317,35 @@ public class AppointmentService : IAppointmentService
             TimeSpan.TryParse(workingHour.BreakEndTime, out var breakEndTs) &&
             breakEndTs > breakStartTs)
         {
-            if (requestedTs >= breakStartTs && requestedTs < breakEndTs)
+            if (requestedTs < breakEndTs && requestedEnd > breakStartTs)
                 throw new InvalidAppointmentTimeException(
-                    $"Requested time '{normalizedRequest}' falls within the break period ({workingHour.BreakStartTime}–{workingHour.BreakEndTime}).");
+                    $"Requested time '{normalizedRequest}' overlaps the break period ({workingHour.BreakStartTime}–{workingHour.BreakEndTime}).");
         }
 
         var dateOnly = requestedDate.Date;
 
-        var isBooked = await _context.Appointments
-            .AnyAsync(a =>
+        var existingAppointments = await _context.Appointments
+            .Include(a => a.BusinessService)
+            .Where(a =>
                 a.StaffMemberId == staffMemberId &&
                 a.RequestedDate.Date == dateOnly &&
-                (a.Status == AppointmentStatuses.Pending || a.Status == AppointmentStatuses.Confirmed) &&
-                a.RequestedTime == normalizedRequest);
+                (a.Status == AppointmentStatuses.Pending || a.Status == AppointmentStatuses.Confirmed))
+            .ToListAsync();
 
-        if (isBooked)
-            throw new AppointmentTimeUnavailableException(normalizedRequest);
+        foreach (var existing in existingAppointments)
+        {
+            if (!TimeSpan.TryParse(existing.RequestedTime, out var existingStart))
+                continue;
+
+            var existingDuration = existing.BusinessService?.DurationMinutes > 0
+                ? existing.BusinessService.DurationMinutes
+                : DefaultSlotDurationMinutes;
+
+            var existingEnd = existingStart + TimeSpan.FromMinutes(existingDuration);
+
+            if (requestedTs < existingEnd && requestedEnd > existingStart)
+                throw new AppointmentTimeUnavailableException(normalizedRequest);
+        }
     }
 
     private static int ToProjectDayOfWeek(DayOfWeek dotNetDayOfWeek) => dotNetDayOfWeek switch
