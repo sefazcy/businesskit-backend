@@ -5,6 +5,7 @@ using BusinessKit.Application.BusinessSettings;
 using BusinessKit.Application.ContactMessages;
 using BusinessKit.Application.Gallery;
 using BusinessKit.Application.ServiceCatalog;
+using BusinessKit.Application.Appointments;
 using BusinessKit.Application.Staff;
 using BusinessKit.Application.Uploads;
 using BusinessKit.Application.UserManagement;
@@ -15,6 +16,7 @@ using BusinessKit.Infrastructure.ContactMessages;
 using BusinessKit.Infrastructure.Data;
 using BusinessKit.Infrastructure.Gallery;
 using BusinessKit.Infrastructure.ServiceCatalog;
+using BusinessKit.Infrastructure.Appointments;
 using BusinessKit.Infrastructure.Staff;
 using BusinessKit.Infrastructure.Uploads;
 using BusinessKit.Infrastructure.UserManagement;
@@ -110,6 +112,9 @@ builder.Services.AddScoped<IBlogService, BlogService>();
 
 // Staff service
 builder.Services.AddScoped<IStaffService, StaffService>();
+
+// Appointment service
+builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 
 // File upload service
 builder.Services.AddScoped<IFileUploadService>(_ =>

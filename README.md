@@ -6,8 +6,9 @@ BusinessKit Backend is a reusable ASP.NET Core Web API backend for small and
 medium business websites — cafes, barbers, clinics, consultants, gyms,
 courses, agencies, and similar businesses. It provides the common building
 blocks these sites need (authentication, business settings, a service
-catalog, contact form handling, a photo gallery, and a blog) behind a clean,
-versioned REST API that any frontend can consume.
+catalog, contact form handling, a photo gallery, a blog, staff profiles, and
+appointment request management) behind a clean, versioned REST API that any
+frontend can consume.
 
 ## Tech Stack
 
@@ -23,7 +24,8 @@ The solution follows a layered architecture:
 
 - **BusinessKit.Domain** — entities only (`User`, `Role`, `UserRole`,
   `BusinessSettings`, `BusinessService`, `ContactMessage`, `GalleryItem`,
-  `BlogPost`). No framework or persistence concerns.
+  `BlogPost`, `StaffMember`, `Appointment`). No framework or persistence
+  concerns.
 - **BusinessKit.Application** — DTOs and service interfaces per module
   (e.g. `IBlogService`, `IGalleryService`). Defines contracts; has no EF
   Core dependency.
@@ -52,6 +54,9 @@ implementation, and a pair of public/admin controllers (where applicable).
 | Contact Messages | `POST /api/contact-messages` | `/api/admin/contact-messages` |
 | Gallery | `/api/gallery` | `/api/admin/gallery` |
 | Blog | `/api/blog` | `/api/admin/blog` |
+| Staff | `/api/staff` | `/api/admin/staff` |
+| Image Upload | — | `POST /api/admin/uploads/image` |
+| Appointments | `POST /api/appointments` | `/api/admin/appointments` |
 
 ## How to Run Locally
 
@@ -101,6 +106,8 @@ These are seeded automatically by `DataSeeder` for local development only.
 - `POST /api/contact-messages`
 - `GET /api/gallery`, `GET /api/gallery/{id}`
 - `GET /api/blog`, `GET /api/blog/{slug}`
+- `GET /api/staff`, `GET /api/staff/{slug}`
+- `POST /api/appointments`
 
 **Authenticated**
 - `GET /api/auth/me`
@@ -112,6 +119,12 @@ These are seeded automatically by `DataSeeder` for local development only.
 - `/api/admin/contact-messages` (list, get, mark-read/unread, mark-replied, archive/unarchive)
 - `/api/admin/gallery` (list, get, create, update, toggle-active)
 - `/api/admin/blog` (list, get, create, update, publish/unpublish)
+- `/api/admin/staff` (list, get, create, update, toggle-active)
+- `POST /api/admin/uploads/image`
+- `GET /api/admin/appointments` (list with optional filters: status, staffMemberId, businessServiceId, date)
+- `GET /api/admin/appointments/{id}`
+- `PATCH /api/admin/appointments/{id}/status`
+- `PUT /api/admin/appointments/{id}`
 
 Open `/swagger` while the API is running for the full interactive list,
 including request/response shapes.
@@ -130,6 +143,9 @@ including request/response shapes.
 | v0.8 | Gallery module (public/admin, category filter, active/inactive, `ImageUrl` string only) |
 | v0.9 | Blog module (public/admin, slug+language uniqueness, publish/unpublish workflow) |
 | v1.0 | MVP stabilization & API polish: route consistency, minimal global error handling, Swagger tags, documentation — no new business modules |
+| v1.1 | Local image upload system (`POST /api/admin/uploads/image`, served from `wwwroot/uploads/images`) |
+| v1.2 | Staff management module (public profile listing by slug, admin CRUD + toggle-active, photo URL, social links) |
+| v1.3 | Appointment Foundation: public appointment request creation; admin list/detail/status-update/full-update; optional StaffMember and BusinessService references; status workflow (Pending → Confirmed / Cancelled / Completed); status validation returns 400 for unknown values — **not a full scheduling engine**: no slot calculation, no working hours, no calendar sync, no notifications, no payments |
 
 ## Notes on Secrets
 
@@ -151,9 +167,9 @@ The `.db` file itself is git-ignored and must never be committed.
 The following are intentionally out of scope for the current MVP and are
 expected to be addressed in future versions:
 
-- File upload / image storage and processing (current modules store
-  `ImageUrl`/`CoverImageUrl` as plain strings only)
-- Appointment booking and staff/slot management
+- Full appointment scheduling engine: available slot calculation, staff
+  working hours, calendar sync (e.g. Google Calendar) — v1.3 provides the
+  appointment request foundation only
 - QR-code menus
 - Orders and payments
 - CRM / customer management
