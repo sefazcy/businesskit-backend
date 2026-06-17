@@ -32,5 +32,13 @@ public class AppointmentsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (InvalidAppointmentTimeException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (AppointmentTimeUnavailableException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 }

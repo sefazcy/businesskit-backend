@@ -22,6 +22,9 @@ public class AppointmentService : IAppointmentService
         await ValidateStaffMemberAsync(dto.StaffMemberId);
         await ValidateBusinessServiceAsync(dto.BusinessServiceId);
 
+        if (dto.StaffMemberId.HasValue)
+            await ValidateAppointmentAvailabilityAsync(dto.StaffMemberId.Value, dto.RequestedDate, dto.RequestedTime);
+
         var appointment = new Appointment
         {
             CustomerFullName = dto.CustomerFullName,
@@ -150,6 +153,68 @@ public class AppointmentService : IAppointmentService
 
         return MapToDto(appointment);
     }
+
+    private async Task ValidateAppointmentAvailabilityAsync(int staffMemberId, DateTime requestedDate, string requestedTime)
+    {
+        if (!TimeSpan.TryParse(requestedTime, out var requestedTs))
+            throw new InvalidAppointmentTimeException(
+                $"RequestedTime '{requestedTime}' is not a valid time. Use format HH:mm, e.g. '09:00'.");
+
+        var normalizedRequest = $"{requestedTs.Hours:D2}:{requestedTs.Minutes:D2}";
+
+        var projectDay = ToProjectDayOfWeek(requestedDate.DayOfWeek);
+
+        var workingHour = await _context.StaffWorkingHours
+            .FirstOrDefaultAsync(w => w.StaffMemberId == staffMemberId && w.DayOfWeek == projectDay);
+
+        if (workingHour == null || !workingHour.IsWorkingDay)
+            throw new InvalidAppointmentTimeException(
+                $"Staff member {staffMemberId} does not work on {requestedDate:dddd, yyyy-MM-dd}.");
+
+        if (!TimeSpan.TryParse(workingHour.StartTime, out var startTs) ||
+            !TimeSpan.TryParse(workingHour.EndTime, out var endTs))
+            throw new InvalidAppointmentTimeException(
+                "Staff working hours are not configured correctly for this day.");
+
+        if (requestedTs < startTs || requestedTs >= endTs)
+            throw new InvalidAppointmentTimeException(
+                $"Requested time '{normalizedRequest}' is outside working hours ({workingHour.StartTime}–{workingHour.EndTime}).");
+
+        if (!string.IsNullOrWhiteSpace(workingHour.BreakStartTime) &&
+            !string.IsNullOrWhiteSpace(workingHour.BreakEndTime) &&
+            TimeSpan.TryParse(workingHour.BreakStartTime, out var breakStartTs) &&
+            TimeSpan.TryParse(workingHour.BreakEndTime, out var breakEndTs) &&
+            breakEndTs > breakStartTs)
+        {
+            if (requestedTs >= breakStartTs && requestedTs < breakEndTs)
+                throw new InvalidAppointmentTimeException(
+                    $"Requested time '{normalizedRequest}' falls within the break period ({workingHour.BreakStartTime}–{workingHour.BreakEndTime}).");
+        }
+
+        var dateOnly = requestedDate.Date;
+
+        var isBooked = await _context.Appointments
+            .AnyAsync(a =>
+                a.StaffMemberId == staffMemberId &&
+                a.RequestedDate.Date == dateOnly &&
+                (a.Status == AppointmentStatuses.Pending || a.Status == AppointmentStatuses.Confirmed) &&
+                a.RequestedTime == normalizedRequest);
+
+        if (isBooked)
+            throw new AppointmentTimeUnavailableException(normalizedRequest);
+    }
+
+    private static int ToProjectDayOfWeek(DayOfWeek dotNetDayOfWeek) => dotNetDayOfWeek switch
+    {
+        DayOfWeek.Monday => 1,
+        DayOfWeek.Tuesday => 2,
+        DayOfWeek.Wednesday => 3,
+        DayOfWeek.Thursday => 4,
+        DayOfWeek.Friday => 5,
+        DayOfWeek.Saturday => 6,
+        DayOfWeek.Sunday => 7,
+        _ => throw new ArgumentOutOfRangeException(nameof(dotNetDayOfWeek))
+    };
 
     private async Task ValidateStaffMemberAsync(int? staffMemberId)
     {
