@@ -10,6 +10,11 @@ catalog, contact form handling, a photo gallery, a blog, staff profiles, and
 appointment request management) behind a clean, versioned REST API that any
 frontend can consume.
 
+**Current release: v2.0 MVP.** This is the first complete, usable backend
+release. It is suitable for local development, demos, and small deployments
+where the limitations noted under [Post-v2.0 Roadmap](#post-v20-roadmap) are
+acceptable. It is not a production SaaS product.
+
 ## Tech Stack
 
 - **.NET 8** / ASP.NET Core Web API
@@ -164,6 +169,7 @@ including request/response shapes.
 | v1.7 | Appointment Admin Polish: `GET /api/admin/appointments` gains `startDate`/`endDate` range filters; combining `date` with `startDate`/`endDate` returns 400 to avoid ambiguity; new `GET /appointments/today` returns today's appointments with optional status/staff/service filters; new `GET /appointments/upcoming` returns appointments from today onward with optional `days` parameter (default 7, value ≤ 0 returns 400); new `GET /appointments/stats` returns totals by status plus today-count and upcoming-7-day count with optional staffMember/service/date-range filters; all existing detail/status/update endpoints unchanged — no duration-based conflict logic, no notifications, no calendar sync, no payments, no multi-tenancy |
 | v1.8 | Duration-Based Appointment Conflict Logic: availability slots now respect the full service duration — the last slot is only included if `slotStart + duration ≤ workEnd`; break-time exclusion is now interval-based (`slotStart < breakEnd && slotEnd > breakStart`) instead of point-in-time; existing appointments block a range equal to their own service duration (defaulting to 30 min), so a 60-minute appointment at 10:00 blocks 10:00–11:00 and prevents new appointments at 10:30; `POST /api/appointments` applies the same duration-aware overlap check when `staffMemberId` is provided — outside-hours (duration end exceeds work end) and break-overlap return 400, scheduling conflict returns 409; Cancelled and Completed appointments still do not block; requests without `staffMemberId` still bypass availability checks — no new tables, no migrations, no holidays/exceptions, no calendar sync, no notifications, no payments, no multi-tenancy |
 | v1.9 | Final MVP Cleanup: route consistency audit across all 21 controllers (all public routes under `api/…`, all admin routes under `api/admin/…`, `{id:int}` constraints in place, fixed sub-routes `today`/`upcoming`/`stats` ordered before `{id:int}` to prevent shadowing); Swagger tag review — all controllers confirmed tagged correctly with Public/Admin suffixes; error-response consistency check — 400/404/409 patterns uniform across all modules; README updated to reflect full v1.0–v1.9 history and v2.0 roadmap; `SMOKE_TESTS.md` added as a manual regression checklist; no schema changes, no migrations, no new features |
+| **v2.0** | **First MVP release**: all v1.x modules stable and verified; `RELEASE_NOTES.md` added; README and `SMOKE_TESTS.md` updated to reflect current release state; full regression pass confirmed clean; build 0 errors / 0 warnings; last schema migration `AddStaffWorkingHours` — no schema changes since v1.4; tagged as first usable backend release for demos, local development, and small deployments |
 
 ## Notes on Secrets
 
@@ -180,15 +186,10 @@ production deployments with concurrent write load — a production deployment
 should migrate to a server-based database (e.g. PostgreSQL or SQL Server).
 The `.db` file itself is git-ignored and must never be committed.
 
-## v2.0 Roadmap
+## Post-v2.0 Roadmap
 
-v1.9 is the final cleanup release before **v2.0 MVP**. The v1.x series
-establishes all core API modules; v2.0 will focus on production readiness
-and the features listed below.
-
-## Future Work (Planned for v2.0 and beyond)
-
-The following are intentionally out of scope for the v1.x series:
+v2.0 is the first MVP release. The following features are intentionally out
+of scope for v2.0 and are planned for future versions:
 
 - **Holidays and date exceptions** — staff-specific or business-wide non-working dates
 - **Staff-service assignment** — restrict which staff members can perform which services
