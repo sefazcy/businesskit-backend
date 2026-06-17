@@ -25,7 +25,8 @@ The solution follows a layered architecture:
 - **BusinessKit.Domain** — entities only (`User`, `Role`, `UserRole`,
   `BusinessSettings`, `BusinessService`, `ContactMessage`, `GalleryItem`,
   `BlogPost`, `StaffMember`, `Appointment`, `StaffWorkingHour`). No framework
-  or persistence concerns.
+  or persistence concerns. The Availability module has no entity of its own —
+  it is a pure query service over existing data.
 - **BusinessKit.Application** — DTOs and service interfaces per module
   (e.g. `IBlogService`, `IGalleryService`). Defines contracts; has no EF
   Core dependency.
@@ -58,6 +59,7 @@ implementation, and a pair of public/admin controllers (where applicable).
 | Image Upload | — | `POST /api/admin/uploads/image` |
 | Appointments | `POST /api/appointments` | `/api/admin/appointments` |
 | Staff Working Hours | — | `/api/admin/staff-working-hours`, `/api/admin/staff/{id}/working-hours` |
+| Availability | `GET /api/availability/slots` | — |
 
 ## How to Run Locally
 
@@ -109,6 +111,7 @@ These are seeded automatically by `DataSeeder` for local development only.
 - `GET /api/blog`, `GET /api/blog/{slug}`
 - `GET /api/staff`, `GET /api/staff/{slug}`
 - `POST /api/appointments`
+- `GET /api/availability/slots?staffMemberId=&date=&businessServiceId=` (optional businessServiceId)
 
 **Authenticated**
 - `GET /api/auth/me`
@@ -153,6 +156,7 @@ including request/response shapes.
 | v1.2 | Staff management module (public profile listing by slug, admin CRUD + toggle-active, photo URL, social links) |
 | v1.3 | Appointment Foundation: public appointment request creation; admin list/detail/status-update/full-update; optional StaffMember and BusinessService references; status workflow (Pending → Confirmed / Cancelled / Completed); status validation returns 400 for unknown values — **not a full scheduling engine**: no slot calculation, no working hours, no calendar sync, no notifications, no payments |
 | v1.4 | Staff Working Hours Foundation: admin can define weekly working hours per staff member (day, start/end time, optional break window, IsWorkingDay flag); unique index on StaffMemberId + DayOfWeek enforces one row per day; 409 on duplicate, 400 on invalid staff or day — **does not calculate available appointment slots**: no slot engine, no conflict detection, no booking rules, no calendar sync, no notifications |
+| v1.5 | Available Slot Calculation Foundation: public `GET /api/availability/slots` returns available time slots for a staff member on a given date; respects staff working hours (start/end time, IsWorkingDay, break window); excludes slots blocked by Pending or Confirmed appointments; slot duration defaults to 30 min or uses `BusinessService.DurationMinutes` when `businessServiceId` is supplied — **simple foundation only**: no holidays/exceptions, no multi-slot conflict duration, no staff-service assignment, no calendar sync, no time zones |
 
 ## Notes on Secrets
 
@@ -174,10 +178,11 @@ The `.db` file itself is git-ignored and must never be committed.
 The following are intentionally out of scope for the current MVP and are
 expected to be addressed in future versions:
 
-- Full appointment scheduling engine: available slot calculation, conflict
-  detection, booking rules, calendar sync (e.g. Google Calendar) — v1.3
-  provides the appointment request foundation and v1.4 provides the staff
-  working hours foundation; slot calculation is not yet implemented
+- Full appointment scheduling engine: holidays/exceptions, multi-slot conflict
+  duration, staff-service assignment, booking rules, calendar sync (e.g. Google
+  Calendar) — v1.3 provides appointment requests, v1.4 provides staff working
+  hours, v1.5 provides basic slot calculation; a production-grade scheduling
+  engine is not yet implemented
 - QR-code menus
 - Orders and payments
 - CRM / customer management
