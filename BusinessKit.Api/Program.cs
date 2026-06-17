@@ -31,6 +31,14 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AdminPanelDev", policy =>
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
@@ -165,6 +173,7 @@ else
     });
 }
 
+app.UseCors("AdminPanelDev");
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAuthentication(); // Must come before UseAuthorization
