@@ -5,6 +5,7 @@ using BusinessKit.Application.BusinessSettings;
 using BusinessKit.Application.ContactMessages;
 using BusinessKit.Application.Gallery;
 using BusinessKit.Application.ServiceCatalog;
+using BusinessKit.Application.Staff;
 using BusinessKit.Application.Uploads;
 using BusinessKit.Application.UserManagement;
 using BusinessKit.Infrastructure.Auth;
@@ -14,6 +15,7 @@ using BusinessKit.Infrastructure.ContactMessages;
 using BusinessKit.Infrastructure.Data;
 using BusinessKit.Infrastructure.Gallery;
 using BusinessKit.Infrastructure.ServiceCatalog;
+using BusinessKit.Infrastructure.Staff;
 using BusinessKit.Infrastructure.Uploads;
 using BusinessKit.Infrastructure.UserManagement;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -105,6 +107,9 @@ builder.Services.AddScoped<IGalleryService, GalleryService>();
 
 // Blog service
 builder.Services.AddScoped<IBlogService, BlogService>();
+
+// Staff service
+builder.Services.AddScoped<IStaffService, StaffService>();
 
 // File upload service
 builder.Services.AddScoped<IFileUploadService>(_ =>
