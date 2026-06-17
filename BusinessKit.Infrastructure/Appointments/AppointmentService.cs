@@ -52,7 +52,9 @@ public class AppointmentService : IAppointmentService
         string? status,
         int? staffMemberId,
         int? businessServiceId,
-        DateTime? date)
+        DateTime? date,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
     {
         if (status != null && !AppointmentStatuses.IsValid(status))
             throw new InvalidAppointmentStatusException(status);
@@ -73,9 +75,17 @@ public class AppointmentService : IAppointmentService
 
         if (date.HasValue)
         {
-            var start = date.Value.Date;
-            var end = start.AddDays(1);
-            query = query.Where(a => a.RequestedDate >= start && a.RequestedDate < end);
+            var dayStart = date.Value.Date;
+            var dayEnd = dayStart.AddDays(1);
+            query = query.Where(a => a.RequestedDate >= dayStart && a.RequestedDate < dayEnd);
+        }
+        else
+        {
+            if (startDate.HasValue)
+                query = query.Where(a => a.RequestedDate >= startDate.Value.Date);
+
+            if (endDate.HasValue)
+                query = query.Where(a => a.RequestedDate < endDate.Value.Date.AddDays(1));
         }
 
         var appointments = await query
@@ -152,6 +162,110 @@ public class AppointmentService : IAppointmentService
         await _context.Entry(appointment).Reference(a => a.BusinessService).LoadAsync();
 
         return MapToDto(appointment);
+    }
+
+    public async Task<List<AppointmentDto>> GetTodayAsync(string? status, int? staffMemberId, int? businessServiceId)
+    {
+        if (status != null && !AppointmentStatuses.IsValid(status))
+            throw new InvalidAppointmentStatusException(status);
+
+        var today = DateTime.UtcNow.Date;
+        var tomorrow = today.AddDays(1);
+
+        var query = _context.Appointments
+            .Include(a => a.StaffMember)
+            .Include(a => a.BusinessService)
+            .Where(a => a.RequestedDate >= today && a.RequestedDate < tomorrow)
+            .AsQueryable();
+
+        if (status != null)
+            query = query.Where(a => a.Status == status);
+
+        if (staffMemberId.HasValue)
+            query = query.Where(a => a.StaffMemberId == staffMemberId.Value);
+
+        if (businessServiceId.HasValue)
+            query = query.Where(a => a.BusinessServiceId == businessServiceId.Value);
+
+        var appointments = await query
+            .OrderBy(a => a.RequestedDate)
+            .ThenBy(a => a.RequestedTime)
+            .ThenBy(a => a.Id)
+            .ToListAsync();
+
+        return appointments.Select(MapToDto).ToList();
+    }
+
+    public async Task<List<AppointmentDto>> GetUpcomingAsync(string? status, int? staffMemberId, int? businessServiceId, int days)
+    {
+        if (status != null && !AppointmentStatuses.IsValid(status))
+            throw new InvalidAppointmentStatusException(status);
+
+        var today = DateTime.UtcNow.Date;
+        var rangeEnd = today.AddDays(days + 1);
+
+        var query = _context.Appointments
+            .Include(a => a.StaffMember)
+            .Include(a => a.BusinessService)
+            .Where(a => a.RequestedDate >= today && a.RequestedDate < rangeEnd)
+            .AsQueryable();
+
+        if (status != null)
+            query = query.Where(a => a.Status == status);
+
+        if (staffMemberId.HasValue)
+            query = query.Where(a => a.StaffMemberId == staffMemberId.Value);
+
+        if (businessServiceId.HasValue)
+            query = query.Where(a => a.BusinessServiceId == businessServiceId.Value);
+
+        var appointments = await query
+            .OrderBy(a => a.RequestedDate)
+            .ThenBy(a => a.RequestedTime)
+            .ThenBy(a => a.Id)
+            .ToListAsync();
+
+        return appointments.Select(MapToDto).ToList();
+    }
+
+    public async Task<AppointmentStatsDto> GetStatsAsync(int? staffMemberId, int? businessServiceId, DateTime? startDate, DateTime? endDate)
+    {
+        var query = _context.Appointments.AsQueryable();
+
+        if (staffMemberId.HasValue)
+            query = query.Where(a => a.StaffMemberId == staffMemberId.Value);
+
+        if (businessServiceId.HasValue)
+            query = query.Where(a => a.BusinessServiceId == businessServiceId.Value);
+
+        if (startDate.HasValue)
+            query = query.Where(a => a.RequestedDate >= startDate.Value.Date);
+
+        if (endDate.HasValue)
+            query = query.Where(a => a.RequestedDate < endDate.Value.Date.AddDays(1));
+
+        var today = DateTime.UtcNow.Date;
+        var tomorrow = today.AddDays(1);
+        var upcoming7End = today.AddDays(8);
+
+        var total = await query.CountAsync();
+        var pending = await query.CountAsync(a => a.Status == AppointmentStatuses.Pending);
+        var confirmed = await query.CountAsync(a => a.Status == AppointmentStatuses.Confirmed);
+        var cancelled = await query.CountAsync(a => a.Status == AppointmentStatuses.Cancelled);
+        var completed = await query.CountAsync(a => a.Status == AppointmentStatuses.Completed);
+        var todayCount = await query.CountAsync(a => a.RequestedDate >= today && a.RequestedDate < tomorrow);
+        var upcoming7Count = await query.CountAsync(a => a.RequestedDate >= today && a.RequestedDate < upcoming7End);
+
+        return new AppointmentStatsDto
+        {
+            TotalAppointments = total,
+            PendingCount = pending,
+            ConfirmedCount = confirmed,
+            CancelledCount = cancelled,
+            CompletedCount = completed,
+            TodayCount = todayCount,
+            Upcoming7DaysCount = upcoming7Count
+        };
     }
 
     private async Task ValidateAppointmentAvailabilityAsync(int staffMemberId, DateTime requestedDate, string requestedTime)

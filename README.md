@@ -125,7 +125,10 @@ These are seeded automatically by `DataSeeder` for local development only.
 - `/api/admin/blog` (list, get, create, update, publish/unpublish)
 - `/api/admin/staff` (list, get, create, update, toggle-active)
 - `POST /api/admin/uploads/image`
-- `GET /api/admin/appointments` (list with optional filters: status, staffMemberId, businessServiceId, date)
+- `GET /api/admin/appointments` (filters: status, staffMemberId, businessServiceId, date; or startDate/endDate range — combining date with startDate/endDate returns 400)
+- `GET /api/admin/appointments/today` (optional filters: status, staffMemberId, businessServiceId)
+- `GET /api/admin/appointments/upcoming` (optional filters: status, staffMemberId, businessServiceId, days — defaults to 7)
+- `GET /api/admin/appointments/stats` (optional filters: staffMemberId, businessServiceId, startDate, endDate)
 - `GET /api/admin/appointments/{id}`
 - `PATCH /api/admin/appointments/{id}/status`
 - `PUT /api/admin/appointments/{id}`
@@ -158,6 +161,7 @@ including request/response shapes.
 | v1.4 | Staff Working Hours Foundation: admin can define weekly working hours per staff member (day, start/end time, optional break window, IsWorkingDay flag); unique index on StaffMemberId + DayOfWeek enforces one row per day; 409 on duplicate, 400 on invalid staff or day — **does not calculate available appointment slots**: no slot engine, no conflict detection, no booking rules, no calendar sync, no notifications |
 | v1.5 | Available Slot Calculation Foundation: public `GET /api/availability/slots` returns available time slots for a staff member on a given date; respects staff working hours (start/end time, IsWorkingDay, break window); excludes slots blocked by Pending or Confirmed appointments; slot duration defaults to 30 min or uses `BusinessService.DurationMinutes` when `businessServiceId` is supplied — **simple foundation only**: no holidays/exceptions, no multi-slot conflict duration, no staff-service assignment, no calendar sync, no time zones |
 | v1.6 | Appointment Creation Availability Validation: `POST /api/appointments` now validates the requested time against staff working hours when `staffMemberId` is provided — checks the staff working hour record for that day, blocks creation on non-working days (400), outside working hours (400), during the break window (400), and at a time already held by a Pending or Confirmed appointment (409); Cancelled and Completed appointments do not block the slot; requests with no `staffMemberId` bypass availability checks and are still accepted as generic appointment requests — exact-time conflict only, no duration-based overlap engine yet |
+| v1.7 | Appointment Admin Polish: `GET /api/admin/appointments` gains `startDate`/`endDate` range filters; combining `date` with `startDate`/`endDate` returns 400 to avoid ambiguity; new `GET /appointments/today` returns today's appointments with optional status/staff/service filters; new `GET /appointments/upcoming` returns appointments from today onward with optional `days` parameter (default 7, value ≤ 0 returns 400); new `GET /appointments/stats` returns totals by status plus today-count and upcoming-7-day count with optional staffMember/service/date-range filters; all existing detail/status/update endpoints unchanged — no duration-based conflict logic, no notifications, no calendar sync, no payments, no multi-tenancy |
 
 ## Notes on Secrets
 
@@ -181,11 +185,11 @@ expected to be addressed in future versions:
 
 - Full appointment scheduling engine: v1.3 provides appointment requests,
   v1.4 provides staff working hours definitions, v1.5 provides available slot
-  calculation (respects working hours, break windows, and existing bookings),
-  v1.6 validates appointment creation against staff availability — still not
-  implemented: duration-based multi-slot conflict detection, holidays and date
-  exceptions, staff-service assignment, booking rules, calendar sync (e.g.
-  Google Calendar), notifications (email/SMS), and time zone handling
+  calculation, v1.6 validates appointment creation against staff availability,
+  v1.7 adds admin listing/today/upcoming/stats polish — still not implemented:
+  duration-based multi-slot conflict detection, holidays and date exceptions,
+  staff-service assignment, booking rules, calendar sync (e.g. Google Calendar),
+  notifications (email/SMS), payments, and time zone handling
 - QR-code menus
 - Orders and payments
 - CRM / customer management

@@ -25,17 +25,73 @@ public class AdminAppointmentsController : ControllerBase
         [FromQuery] string? status,
         [FromQuery] int? staffMemberId,
         [FromQuery] int? businessServiceId,
-        [FromQuery] DateTime? date)
+        [FromQuery] DateTime? date,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate)
     {
+        if (date.HasValue && (startDate.HasValue || endDate.HasValue))
+            return BadRequest(new { message = "Use 'date' for a single day or 'startDate'/'endDate' for a range, not both." });
+
         try
         {
-            var appointments = await _appointmentService.GetAllAsync(status, staffMemberId, businessServiceId, date);
+            var appointments = await _appointmentService.GetAllAsync(status, staffMemberId, businessServiceId, date, startDate, endDate);
             return Ok(appointments);
         }
         catch (InvalidAppointmentStatusException ex)
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [HttpGet("today")]
+    public async Task<IActionResult> GetToday(
+        [FromQuery] string? status,
+        [FromQuery] int? staffMemberId,
+        [FromQuery] int? businessServiceId)
+    {
+        try
+        {
+            var appointments = await _appointmentService.GetTodayAsync(status, staffMemberId, businessServiceId);
+            return Ok(appointments);
+        }
+        catch (InvalidAppointmentStatusException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("upcoming")]
+    public async Task<IActionResult> GetUpcoming(
+        [FromQuery] string? status,
+        [FromQuery] int? staffMemberId,
+        [FromQuery] int? businessServiceId,
+        [FromQuery] int? days)
+    {
+        var resolvedDays = days ?? 7;
+
+        if (resolvedDays <= 0)
+            return BadRequest(new { message = "days must be greater than 0." });
+
+        try
+        {
+            var appointments = await _appointmentService.GetUpcomingAsync(status, staffMemberId, businessServiceId, resolvedDays);
+            return Ok(appointments);
+        }
+        catch (InvalidAppointmentStatusException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats(
+        [FromQuery] int? staffMemberId,
+        [FromQuery] int? businessServiceId,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate)
+    {
+        var stats = await _appointmentService.GetStatsAsync(staffMemberId, businessServiceId, startDate, endDate);
+        return Ok(stats);
     }
 
     [HttpGet("{id:int}")]
