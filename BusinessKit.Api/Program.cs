@@ -7,6 +7,7 @@ using BusinessKit.Application.Gallery;
 using BusinessKit.Application.ServiceCatalog;
 using BusinessKit.Application.Appointments;
 using BusinessKit.Application.Staff;
+using BusinessKit.Application.StaffWorkingHours;
 using BusinessKit.Application.Uploads;
 using BusinessKit.Application.UserManagement;
 using BusinessKit.Infrastructure.Auth;
@@ -18,6 +19,7 @@ using BusinessKit.Infrastructure.Gallery;
 using BusinessKit.Infrastructure.ServiceCatalog;
 using BusinessKit.Infrastructure.Appointments;
 using BusinessKit.Infrastructure.Staff;
+using BusinessKit.Infrastructure.StaffWorkingHours;
 using BusinessKit.Infrastructure.Uploads;
 using BusinessKit.Infrastructure.UserManagement;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -115,6 +117,9 @@ builder.Services.AddScoped<IStaffService, StaffService>();
 
 // Appointment service
 builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+
+// Staff working hours service
+builder.Services.AddScoped<IStaffWorkingHourService, StaffWorkingHourService>();
 
 // File upload service
 builder.Services.AddScoped<IFileUploadService>(_ =>

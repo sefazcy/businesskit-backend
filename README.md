@@ -24,8 +24,8 @@ The solution follows a layered architecture:
 
 - **BusinessKit.Domain** — entities only (`User`, `Role`, `UserRole`,
   `BusinessSettings`, `BusinessService`, `ContactMessage`, `GalleryItem`,
-  `BlogPost`, `StaffMember`, `Appointment`). No framework or persistence
-  concerns.
+  `BlogPost`, `StaffMember`, `Appointment`, `StaffWorkingHour`). No framework
+  or persistence concerns.
 - **BusinessKit.Application** — DTOs and service interfaces per module
   (e.g. `IBlogService`, `IGalleryService`). Defines contracts; has no EF
   Core dependency.
@@ -57,6 +57,7 @@ implementation, and a pair of public/admin controllers (where applicable).
 | Staff | `/api/staff` | `/api/admin/staff` |
 | Image Upload | — | `POST /api/admin/uploads/image` |
 | Appointments | `POST /api/appointments` | `/api/admin/appointments` |
+| Staff Working Hours | — | `/api/admin/staff-working-hours`, `/api/admin/staff/{id}/working-hours` |
 
 ## How to Run Locally
 
@@ -125,6 +126,11 @@ These are seeded automatically by `DataSeeder` for local development only.
 - `GET /api/admin/appointments/{id}`
 - `PATCH /api/admin/appointments/{id}/status`
 - `PUT /api/admin/appointments/{id}`
+- `GET /api/admin/staff-working-hours` (optional filter: `?staffMemberId=`)
+- `GET /api/admin/staff-working-hours/{id}`
+- `GET /api/admin/staff/{staffMemberId}/working-hours`
+- `POST /api/admin/staff-working-hours`
+- `PUT /api/admin/staff-working-hours/{id}`
 
 Open `/swagger` while the API is running for the full interactive list,
 including request/response shapes.
@@ -146,6 +152,7 @@ including request/response shapes.
 | v1.1 | Local image upload system (`POST /api/admin/uploads/image`, served from `wwwroot/uploads/images`) |
 | v1.2 | Staff management module (public profile listing by slug, admin CRUD + toggle-active, photo URL, social links) |
 | v1.3 | Appointment Foundation: public appointment request creation; admin list/detail/status-update/full-update; optional StaffMember and BusinessService references; status workflow (Pending → Confirmed / Cancelled / Completed); status validation returns 400 for unknown values — **not a full scheduling engine**: no slot calculation, no working hours, no calendar sync, no notifications, no payments |
+| v1.4 | Staff Working Hours Foundation: admin can define weekly working hours per staff member (day, start/end time, optional break window, IsWorkingDay flag); unique index on StaffMemberId + DayOfWeek enforces one row per day; 409 on duplicate, 400 on invalid staff or day — **does not calculate available appointment slots**: no slot engine, no conflict detection, no booking rules, no calendar sync, no notifications |
 
 ## Notes on Secrets
 
@@ -167,9 +174,10 @@ The `.db` file itself is git-ignored and must never be committed.
 The following are intentionally out of scope for the current MVP and are
 expected to be addressed in future versions:
 
-- Full appointment scheduling engine: available slot calculation, staff
-  working hours, calendar sync (e.g. Google Calendar) — v1.3 provides the
-  appointment request foundation only
+- Full appointment scheduling engine: available slot calculation, conflict
+  detection, booking rules, calendar sync (e.g. Google Calendar) — v1.3
+  provides the appointment request foundation and v1.4 provides the staff
+  working hours foundation; slot calculation is not yet implemented
 - QR-code menus
 - Orders and payments
 - CRM / customer management

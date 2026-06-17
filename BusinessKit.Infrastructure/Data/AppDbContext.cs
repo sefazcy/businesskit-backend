@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<BlogPost> BlogPosts { get; set; } = null!;
     public DbSet<StaffMember> StaffMembers { get; set; } = null!;
     public DbSet<Appointment> Appointments { get; set; } = null!;
+    public DbSet<StaffWorkingHour> StaffWorkingHours { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
