@@ -163,6 +163,7 @@ including request/response shapes.
 | v1.6 | Appointment Creation Availability Validation: `POST /api/appointments` now validates the requested time against staff working hours when `staffMemberId` is provided — checks the staff working hour record for that day, blocks creation on non-working days (400), outside working hours (400), during the break window (400), and at a time already held by a Pending or Confirmed appointment (409); Cancelled and Completed appointments do not block the slot; requests with no `staffMemberId` bypass availability checks and are still accepted as generic appointment requests — exact-time conflict only, no duration-based overlap engine yet |
 | v1.7 | Appointment Admin Polish: `GET /api/admin/appointments` gains `startDate`/`endDate` range filters; combining `date` with `startDate`/`endDate` returns 400 to avoid ambiguity; new `GET /appointments/today` returns today's appointments with optional status/staff/service filters; new `GET /appointments/upcoming` returns appointments from today onward with optional `days` parameter (default 7, value ≤ 0 returns 400); new `GET /appointments/stats` returns totals by status plus today-count and upcoming-7-day count with optional staffMember/service/date-range filters; all existing detail/status/update endpoints unchanged — no duration-based conflict logic, no notifications, no calendar sync, no payments, no multi-tenancy |
 | v1.8 | Duration-Based Appointment Conflict Logic: availability slots now respect the full service duration — the last slot is only included if `slotStart + duration ≤ workEnd`; break-time exclusion is now interval-based (`slotStart < breakEnd && slotEnd > breakStart`) instead of point-in-time; existing appointments block a range equal to their own service duration (defaulting to 30 min), so a 60-minute appointment at 10:00 blocks 10:00–11:00 and prevents new appointments at 10:30; `POST /api/appointments` applies the same duration-aware overlap check when `staffMemberId` is provided — outside-hours (duration end exceeds work end) and break-overlap return 400, scheduling conflict returns 409; Cancelled and Completed appointments still do not block; requests without `staffMemberId` still bypass availability checks — no new tables, no migrations, no holidays/exceptions, no calendar sync, no notifications, no payments, no multi-tenancy |
+| v1.9 | Final MVP Cleanup: route consistency audit across all 21 controllers (all public routes under `api/…`, all admin routes under `api/admin/…`, `{id:int}` constraints in place, fixed sub-routes `today`/`upcoming`/`stats` ordered before `{id:int}` to prevent shadowing); Swagger tag review — all controllers confirmed tagged correctly with Public/Admin suffixes; error-response consistency check — 400/404/409 patterns uniform across all modules; README updated to reflect full v1.0–v1.9 history and v2.0 roadmap; `SMOKE_TESTS.md` added as a manual regression checklist; no schema changes, no migrations, no new features |
 
 ## Notes on Secrets
 
@@ -179,23 +180,28 @@ production deployments with concurrent write load — a production deployment
 should migrate to a server-based database (e.g. PostgreSQL or SQL Server).
 The `.db` file itself is git-ignored and must never be committed.
 
-## Future Modules (Not Yet Implemented)
+## v2.0 Roadmap
 
-The following are intentionally out of scope for the current MVP and are
-expected to be addressed in future versions:
+v1.9 is the final cleanup release before **v2.0 MVP**. The v1.x series
+establishes all core API modules; v2.0 will focus on production readiness
+and the features listed below.
 
-- Full appointment scheduling engine: v1.3 provides appointment requests,
-  v1.4 provides staff working hours definitions, v1.5 provides available slot
-  calculation, v1.6 validates appointment creation against staff availability,
-  v1.7 adds admin listing/today/upcoming/stats polish, v1.8 adds duration-based
-  multi-slot conflict detection — still not implemented: holidays and date
-  exceptions, staff-service assignment, booking rules, calendar sync (e.g. Google
-  Calendar), notifications (email/SMS), payments, and time zone handling
-- QR-code menus
-- Orders and payments
-- CRM / customer management
-- Multi-tenancy (multiple businesses per deployment)
-- Notifications (email/SMS)
+## Future Work (Planned for v2.0 and beyond)
+
+The following are intentionally out of scope for the v1.x series:
+
+- **Holidays and date exceptions** — staff-specific or business-wide non-working dates
+- **Staff-service assignment** — restrict which staff members can perform which services
+- **Booking rules** — min/max advance booking windows, slot padding between appointments
+- **Calendar sync** — Google Calendar or iCal integration
+- **Notifications** — email/SMS confirmation and reminder workflows
+- **Payments** — online payment capture at booking time
+- **Multi-tenancy** — multiple businesses per deployment with isolated data
+- **Frontend / admin panel** — browser-based management UI
+- **Automated tests** — unit and integration test suites
+- **Docker / deployment** — containerisation, CI/CD pipeline, production database migration guidance
+- **QR-code menus** — for F&B businesses
+- **CRM / customer management** — customer profiles, visit history, loyalty
 
 ## Manual Regression Checklist
 
