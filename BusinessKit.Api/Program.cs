@@ -6,6 +6,7 @@ using BusinessKit.Application.ContactMessages;
 using BusinessKit.Application.Gallery;
 using BusinessKit.Application.ServiceCatalog;
 using BusinessKit.Application.Appointments;
+using BusinessKit.Application.Customers;
 using BusinessKit.Application.Availability;
 using BusinessKit.Application.Staff;
 using BusinessKit.Application.StaffWorkingHours;
@@ -19,6 +20,7 @@ using BusinessKit.Infrastructure.Data;
 using BusinessKit.Infrastructure.Gallery;
 using BusinessKit.Infrastructure.ServiceCatalog;
 using BusinessKit.Infrastructure.Appointments;
+using BusinessKit.Infrastructure.Customers;
 using BusinessKit.Infrastructure.Availability;
 using BusinessKit.Infrastructure.Staff;
 using BusinessKit.Infrastructure.StaffWorkingHours;
@@ -127,6 +129,9 @@ builder.Services.AddScoped<IStaffService, StaffService>();
 
 // Appointment service
 builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+
+// Customer service
+builder.Services.AddScoped<ICustomerService, CustomerService>();
 
 // Staff working hours service
 builder.Services.AddScoped<IStaffWorkingHourService, StaffWorkingHourService>();
