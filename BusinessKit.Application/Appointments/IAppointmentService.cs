@@ -5,7 +5,7 @@ namespace BusinessKit.Application.Appointments;
 public interface IAppointmentService
 {
     Task<AppointmentDto> CreateAsync(CreateAppointmentRequestDto dto);
-    Task<List<AppointmentDto>> GetAllAsync(string? status, int? staffMemberId, int? businessServiceId, DateTime? date, DateTime? startDate = null, DateTime? endDate = null);
+    Task<List<AppointmentDto>> GetAllAsync(string? status, int? staffMemberId, int? businessServiceId, DateTime? date, DateTime? startDate = null, DateTime? endDate = null, string? customerName = null, string? customerEmail = null, string? customerPhone = null);
     Task<AppointmentDto?> GetByIdAsync(int id);
     Task<AppointmentDto?> UpdateStatusAsync(int id, UpdateAppointmentStatusDto dto);
     Task<AppointmentDto?> UpdateAsync(int id, UpdateAppointmentDto dto);

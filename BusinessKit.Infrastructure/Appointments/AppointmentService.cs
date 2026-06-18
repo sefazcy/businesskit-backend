@@ -56,7 +56,10 @@ public class AppointmentService : IAppointmentService
         int? businessServiceId,
         DateTime? date,
         DateTime? startDate = null,
-        DateTime? endDate = null)
+        DateTime? endDate = null,
+        string? customerName = null,
+        string? customerEmail = null,
+        string? customerPhone = null)
     {
         if (status != null && !AppointmentStatuses.IsValid(status))
             throw new InvalidAppointmentStatusException(status);
@@ -89,6 +92,18 @@ public class AppointmentService : IAppointmentService
             if (endDate.HasValue)
                 query = query.Where(a => a.RequestedDate < endDate.Value.Date.AddDays(1));
         }
+
+        var nameTerm = customerName?.Trim();
+        if (!string.IsNullOrWhiteSpace(nameTerm))
+            query = query.Where(a => EF.Functions.Like(a.CustomerFullName, $"%{nameTerm}%"));
+
+        var emailTerm = customerEmail?.Trim();
+        if (!string.IsNullOrWhiteSpace(emailTerm))
+            query = query.Where(a => EF.Functions.Like(a.CustomerEmail ?? "", $"%{emailTerm}%"));
+
+        var phoneTerm = customerPhone?.Trim();
+        if (!string.IsNullOrWhiteSpace(phoneTerm))
+            query = query.Where(a => EF.Functions.Like(a.CustomerPhone, $"%{phoneTerm}%"));
 
         var appointments = await query
             .OrderBy(a => a.RequestedDate)

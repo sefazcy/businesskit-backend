@@ -27,14 +27,17 @@ public class AdminAppointmentsController : ControllerBase
         [FromQuery] int? businessServiceId,
         [FromQuery] DateTime? date,
         [FromQuery] DateTime? startDate,
-        [FromQuery] DateTime? endDate)
+        [FromQuery] DateTime? endDate,
+        [FromQuery] string? customerName,
+        [FromQuery] string? customerEmail,
+        [FromQuery] string? customerPhone)
     {
         if (date.HasValue && (startDate.HasValue || endDate.HasValue))
             return BadRequest(new { message = "Use 'date' for a single day or 'startDate'/'endDate' for a range, not both." });
 
         try
         {
-            var appointments = await _appointmentService.GetAllAsync(status, staffMemberId, businessServiceId, date, startDate, endDate);
+            var appointments = await _appointmentService.GetAllAsync(status, staffMemberId, businessServiceId, date, startDate, endDate, customerName, customerEmail, customerPhone);
             return Ok(appointments);
         }
         catch (InvalidAppointmentStatusException ex)
