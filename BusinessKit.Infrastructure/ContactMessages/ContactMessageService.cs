@@ -1,9 +1,11 @@
 using BusinessKit.Application.ContactMessages;
 using BusinessKit.Application.ContactMessages.Dtos;
 using BusinessKit.Application.Email;
+using BusinessKit.Application.Notifications;
 using BusinessKit.Domain.Entities;
 using BusinessKit.Infrastructure.Data;
 using BusinessKit.Infrastructure.Email;
+using BusinessKit.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -16,17 +18,20 @@ public class ContactMessageService : IContactMessageService
     private readonly IEmailSender _emailSender;
     private readonly EmailSettings _emailSettings;
     private readonly ILogger<ContactMessageService> _logger;
+    private readonly INotificationService _notificationService;
 
     public ContactMessageService(
         AppDbContext context,
         IEmailSender emailSender,
         IOptions<EmailSettings> emailOptions,
-        ILogger<ContactMessageService> logger)
+        ILogger<ContactMessageService> logger,
+        INotificationService notificationService)
     {
         _context = context;
         _emailSender = emailSender;
         _emailSettings = emailOptions.Value;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<ContactMessageSubmittedDto> CreateAsync(CreateContactMessageDto dto, string? ipAddress)
@@ -67,6 +72,20 @@ public class ContactMessageService : IContactMessageService
             {
                 _logger.LogWarning(ex, "Failed to send contact-message admin notification for message #{Id}.", message.Id);
             }
+        }
+
+        try
+        {
+            await _notificationService.CreateAsync(
+                "New contact message",
+                $"New message from {dto.FullName} ({dto.Email})",
+                NotificationTypes.ContactMessageReceived,
+                "ContactMessage",
+                message.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create notification for contact message #{Id}.", message.Id);
         }
 
         return new ContactMessageSubmittedDto

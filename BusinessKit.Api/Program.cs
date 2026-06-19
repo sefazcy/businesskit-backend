@@ -4,6 +4,7 @@ using BusinessKit.Application.Blog;
 using BusinessKit.Application.BusinessSettings;
 using BusinessKit.Application.ContactMessages;
 using BusinessKit.Application.Email;
+using BusinessKit.Application.Notifications;
 using BusinessKit.Application.Gallery;
 using BusinessKit.Application.ServiceCatalog;
 using BusinessKit.Application.Appointments;
@@ -19,6 +20,7 @@ using BusinessKit.Infrastructure.BusinessSettings;
 using BusinessKit.Infrastructure.ContactMessages;
 using BusinessKit.Infrastructure.Data;
 using BusinessKit.Infrastructure.Email;
+using BusinessKit.Infrastructure.Notifications;
 using BusinessKit.Infrastructure.Gallery;
 using BusinessKit.Infrastructure.ServiceCatalog;
 using BusinessKit.Infrastructure.Appointments;
@@ -154,6 +156,9 @@ builder.Services.AddScoped<IFileUploadService>(_ =>
 // Set EmailSettings:Enabled=false (the default) to disable all email in development.
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+
+// Notification service
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 var app = builder.Build();
 

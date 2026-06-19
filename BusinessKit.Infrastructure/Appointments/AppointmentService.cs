@@ -2,6 +2,7 @@ using BusinessKit.Application.Appointments;
 using BusinessKit.Application.Appointments.Dtos;
 using BusinessKit.Application.Email;
 using BusinessKit.Application.Exceptions;
+using BusinessKit.Application.Notifications;
 using BusinessKit.Domain.Entities;
 using BusinessKit.Infrastructure.Data;
 using BusinessKit.Infrastructure.Email;
@@ -20,17 +21,20 @@ public class AppointmentService : IAppointmentService
     private readonly IEmailSender _emailSender;
     private readonly EmailSettings _emailSettings;
     private readonly ILogger<AppointmentService> _logger;
+    private readonly INotificationService _notificationService;
 
     public AppointmentService(
         AppDbContext context,
         IEmailSender emailSender,
         IOptions<EmailSettings> emailOptions,
-        ILogger<AppointmentService> logger)
+        ILogger<AppointmentService> logger,
+        INotificationService notificationService)
     {
         _context = context;
         _emailSender = emailSender;
         _emailSettings = emailOptions.Value;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<AppointmentDto> CreateAsync(CreateAppointmentRequestDto dto)
@@ -65,6 +69,20 @@ public class AppointmentService : IAppointmentService
         var appointmentDto = MapToDto(appointment);
 
         await SendAppointmentCreatedEmailsAsync(appointmentDto);
+
+        try
+        {
+            await _notificationService.CreateAsync(
+                "New appointment request",
+                $"New appointment from {appointmentDto.CustomerFullName} on {appointmentDto.RequestedDate:yyyy-MM-dd} at {appointmentDto.RequestedTime}",
+                NotificationTypes.AppointmentCreated,
+                "Appointment",
+                appointmentDto.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create notification for appointment #{Id}.", appointmentDto.Id);
+        }
 
         return appointmentDto;
     }
@@ -217,7 +235,45 @@ public class AppointmentService : IAppointmentService
 
         await SendAppointmentStatusEmailAsync(appointmentDto);
 
+        await CreateAppointmentStatusNotificationAsync(appointmentDto);
+
         return appointmentDto;
+    }
+
+    private async Task CreateAppointmentStatusNotificationAsync(AppointmentDto dto)
+    {
+        if (dto.Status == AppointmentStatuses.Confirmed)
+        {
+            try
+            {
+                await _notificationService.CreateAsync(
+                    "Appointment confirmed",
+                    $"Appointment #{dto.Id} for {dto.CustomerFullName} on {dto.RequestedDate:yyyy-MM-dd} was confirmed",
+                    NotificationTypes.AppointmentConfirmed,
+                    "Appointment",
+                    dto.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create notification for appointment #{Id} confirmation.", dto.Id);
+            }
+        }
+        else if (dto.Status == AppointmentStatuses.Cancelled)
+        {
+            try
+            {
+                await _notificationService.CreateAsync(
+                    "Appointment cancelled",
+                    $"Appointment #{dto.Id} for {dto.CustomerFullName} on {dto.RequestedDate:yyyy-MM-dd} was cancelled",
+                    NotificationTypes.AppointmentCancelled,
+                    "Appointment",
+                    dto.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create notification for appointment #{Id} cancellation.", dto.Id);
+            }
+        }
     }
 
     private async Task SendAppointmentStatusEmailAsync(AppointmentDto dto)
