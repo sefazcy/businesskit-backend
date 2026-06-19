@@ -191,4 +191,40 @@ public static class EmailTemplates
 
         return (emailSubject, html);
     }
+
+    public static (string Subject, string HtmlBody) PaymentConfirmedCustomer(
+        string customerFullName,
+        decimal amount,
+        string currency,
+        int appointmentId,
+        DateTime requestedDate,
+        string requestedTime,
+        string? businessServiceTitle,
+        string businessName)
+    {
+        var subject = $"Payment Confirmed — {WebUtility.HtmlEncode(businessName)}";
+
+        var serviceRow = businessServiceTitle is not null
+            ? $"<tr><td><strong>Service:</strong></td><td>{WebUtility.HtmlEncode(businessServiceTitle)}</td></tr>"
+            : string.Empty;
+
+        var html = $"""
+            <html><body style="font-family:sans-serif;color:#222;">
+            <h2>Payment Confirmed</h2>
+            <p>Hi <strong>{WebUtility.HtmlEncode(customerFullName)}</strong>,</p>
+            <p>Your payment has been confirmed for your appointment at <strong>{WebUtility.HtmlEncode(businessName)}</strong>.</p>
+            <table cellpadding="6" cellspacing="0" style="border-collapse:collapse;">
+              <tr><td><strong>Appointment:</strong></td><td>#{appointmentId}</td></tr>
+              <tr><td><strong>Date:</strong></td><td>{requestedDate:yyyy-MM-dd}</td></tr>
+              <tr><td><strong>Time:</strong></td><td>{WebUtility.HtmlEncode(requestedTime)}</td></tr>
+              {serviceRow}
+              <tr><td><strong>Amount:</strong></td><td>{WebUtility.HtmlEncode(currency)} {amount:0.00}</td></tr>
+            </table>
+            <p>Thank you for your payment. We look forward to seeing you.</p>
+            <p style="color:#888;font-size:12px;margin-top:24px;">{WebUtility.HtmlEncode(businessName)}</p>
+            </body></html>
+            """;
+
+        return (subject, html);
+    }
 }

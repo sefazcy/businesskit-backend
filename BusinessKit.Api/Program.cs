@@ -30,6 +30,8 @@ using BusinessKit.Infrastructure.Staff;
 using BusinessKit.Infrastructure.StaffWorkingHours;
 using BusinessKit.Infrastructure.Uploads;
 using BusinessKit.Infrastructure.UserManagement;
+using BusinessKit.Application.Payments;
+using BusinessKit.Infrastructure.Payments;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -159,6 +161,10 @@ builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 
 // Notification service
 builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// Payment services
+builder.Services.AddScoped<IPaymentProvider, ManualPaymentProvider>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 var app = builder.Build();
 
