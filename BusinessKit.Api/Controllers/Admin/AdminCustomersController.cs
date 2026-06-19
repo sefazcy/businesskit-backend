@@ -1,3 +1,4 @@
+using BusinessKit.Application.Appointments;
 using BusinessKit.Application.Customers;
 using BusinessKit.Application.Customers.Dtos;
 using BusinessKit.Shared.Constants;
@@ -13,10 +14,12 @@ namespace BusinessKit.Api.Controllers.Admin;
 public class AdminCustomersController : ControllerBase
 {
     private readonly ICustomerService _customerService;
+    private readonly IAppointmentService _appointmentService;
 
-    public AdminCustomersController(ICustomerService customerService)
+    public AdminCustomersController(ICustomerService customerService, IAppointmentService appointmentService)
     {
         _customerService = customerService;
+        _appointmentService = appointmentService;
     }
 
     [HttpGet]
@@ -81,5 +84,16 @@ public class AdminCustomersController : ControllerBase
             return NotFound(new { message = $"Customer with id {id} was not found." });
 
         return Ok(customer);
+    }
+
+    [HttpGet("{id:int}/appointments")]
+    public async Task<IActionResult> GetAppointments(int id)
+    {
+        var customer = await _customerService.GetByIdAsync(id);
+        if (customer == null)
+            return NotFound(new { message = $"Customer with id {id} was not found." });
+
+        var appointments = await _appointmentService.GetByCustomerIdAsync(id);
+        return Ok(appointments);
     }
 }

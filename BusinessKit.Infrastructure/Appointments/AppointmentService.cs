@@ -46,6 +46,7 @@ public class AppointmentService : IAppointmentService
 
         await _context.Entry(appointment).Reference(a => a.StaffMember).LoadAsync();
         await _context.Entry(appointment).Reference(a => a.BusinessService).LoadAsync();
+        await _context.Entry(appointment).Reference(a => a.Customer).LoadAsync();
 
         return MapToDto(appointment);
     }
@@ -67,6 +68,7 @@ public class AppointmentService : IAppointmentService
         var query = _context.Appointments
             .Include(a => a.StaffMember)
             .Include(a => a.BusinessService)
+            .Include(a => a.Customer)
             .AsQueryable();
 
         if (status != null)
@@ -119,6 +121,7 @@ public class AppointmentService : IAppointmentService
         var appointment = await _context.Appointments
             .Include(a => a.StaffMember)
             .Include(a => a.BusinessService)
+            .Include(a => a.Customer)
             .FirstOrDefaultAsync(a => a.Id == id);
 
         return appointment == null ? null : MapToDto(appointment);
@@ -132,6 +135,7 @@ public class AppointmentService : IAppointmentService
         var appointment = await _context.Appointments
             .Include(a => a.StaffMember)
             .Include(a => a.BusinessService)
+            .Include(a => a.Customer)
             .FirstOrDefaultAsync(a => a.Id == id);
 
         if (appointment == null)
@@ -156,6 +160,7 @@ public class AppointmentService : IAppointmentService
         var appointment = await _context.Appointments
             .Include(a => a.StaffMember)
             .Include(a => a.BusinessService)
+            .Include(a => a.Customer)
             .FirstOrDefaultAsync(a => a.Id == id);
 
         if (appointment == null)
@@ -172,11 +177,28 @@ public class AppointmentService : IAppointmentService
         appointment.Status = dto.Status;
         appointment.AdminNote = dto.AdminNote;
 
+        if (dto.CustomerId.HasValue)
+        {
+            var customer = await _context.Customers.FindAsync(dto.CustomerId.Value);
+            if (customer == null)
+                throw new InvalidAppointmentReferenceException(
+                    $"Customer with ID {dto.CustomerId.Value} was not found.");
+            if (customer.IsArchived)
+                throw new InvalidAppointmentReferenceException(
+                    $"Customer with ID {dto.CustomerId.Value} is archived.");
+            appointment.CustomerId = dto.CustomerId.Value;
+        }
+        else
+        {
+            appointment.CustomerId = null;
+        }
+
         await _context.SaveChangesAsync();
 
         // Reload nav properties because FK values may have changed
         await _context.Entry(appointment).Reference(a => a.StaffMember).LoadAsync();
         await _context.Entry(appointment).Reference(a => a.BusinessService).LoadAsync();
+        await _context.Entry(appointment).Reference(a => a.Customer).LoadAsync();
 
         return MapToDto(appointment);
     }
@@ -192,6 +214,7 @@ public class AppointmentService : IAppointmentService
         var query = _context.Appointments
             .Include(a => a.StaffMember)
             .Include(a => a.BusinessService)
+            .Include(a => a.Customer)
             .Where(a => a.RequestedDate >= today && a.RequestedDate < tomorrow)
             .AsQueryable();
 
@@ -224,6 +247,7 @@ public class AppointmentService : IAppointmentService
         var query = _context.Appointments
             .Include(a => a.StaffMember)
             .Include(a => a.BusinessService)
+            .Include(a => a.Customer)
             .Where(a => a.RequestedDate >= today && a.RequestedDate < rangeEnd)
             .AsQueryable();
 
@@ -397,9 +421,26 @@ public class AppointmentService : IAppointmentService
                 $"Business service with ID {businessServiceId.Value} was not found.");
     }
 
+    public async Task<List<AppointmentDto>> GetByCustomerIdAsync(int customerId)
+    {
+        var appointments = await _context.Appointments
+            .Include(a => a.StaffMember)
+            .Include(a => a.BusinessService)
+            .Include(a => a.Customer)
+            .Where(a => a.CustomerId == customerId)
+            .OrderBy(a => a.RequestedDate)
+            .ThenBy(a => a.RequestedTime)
+            .ThenBy(a => a.Id)
+            .ToListAsync();
+
+        return appointments.Select(MapToDto).ToList();
+    }
+
     private static AppointmentDto MapToDto(Appointment a) => new()
     {
         Id = a.Id,
+        CustomerId = a.CustomerId,
+        CustomerLinkedFullName = a.Customer?.FullName,
         CustomerFullName = a.CustomerFullName,
         CustomerEmail = a.CustomerEmail,
         CustomerPhone = a.CustomerPhone,

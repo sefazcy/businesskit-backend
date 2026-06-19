@@ -3,6 +3,8 @@ namespace BusinessKit.Application.Appointments.Dtos;
 public class AppointmentDto
 {
     public int Id { get; set; }
+    public int? CustomerId { get; set; }
+    public string? CustomerLinkedFullName { get; set; }
     public string CustomerFullName { get; set; } = string.Empty;
     public string? CustomerEmail { get; set; }
     public string CustomerPhone { get; set; } = string.Empty;

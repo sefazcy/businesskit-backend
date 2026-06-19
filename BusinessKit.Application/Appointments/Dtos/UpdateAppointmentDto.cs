@@ -35,4 +35,6 @@ public class UpdateAppointmentDto
 
     [MaxLength(1000)]
     public string? AdminNote { get; set; }
+
+    public int? CustomerId { get; set; }
 }

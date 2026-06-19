@@ -41,6 +41,13 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         builder.Property(a => a.AdminNote)
             .HasMaxLength(1000);
 
+        // Optional FK to Customers — SetNull so existing appointments are preserved if a customer record is deleted
+        builder.HasOne(a => a.Customer)
+            .WithMany()
+            .HasForeignKey(a => a.CustomerId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
+
         // Optional FK to StaffMembers — SetNull so existing appointments are preserved if a staff member is deleted
         builder.HasOne(a => a.StaffMember)
             .WithMany()
@@ -57,6 +64,7 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
 
         builder.HasIndex(a => a.Status);
         builder.HasIndex(a => a.RequestedDate);
+        builder.HasIndex(a => a.CustomerId);
         builder.HasIndex(a => a.StaffMemberId);
         builder.HasIndex(a => a.BusinessServiceId);
     }

@@ -12,4 +12,5 @@ public interface IAppointmentService
     Task<List<AppointmentDto>> GetTodayAsync(string? status, int? staffMemberId, int? businessServiceId);
     Task<List<AppointmentDto>> GetUpcomingAsync(string? status, int? staffMemberId, int? businessServiceId, int days);
     Task<AppointmentStatsDto> GetStatsAsync(int? staffMemberId, int? businessServiceId, DateTime? startDate, DateTime? endDate);
+    Task<List<AppointmentDto>> GetByCustomerIdAsync(int customerId);
 }

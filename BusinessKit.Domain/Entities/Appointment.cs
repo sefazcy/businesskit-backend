@@ -5,6 +5,8 @@ public class Appointment : BaseEntity
     public string CustomerFullName { get; set; } = string.Empty;
     public string? CustomerEmail { get; set; }
     public string CustomerPhone { get; set; } = string.Empty;
+    public int? CustomerId { get; set; }
+    public Customer? Customer { get; set; }
     public int? StaffMemberId { get; set; }
     public StaffMember? StaffMember { get; set; }
     public int? BusinessServiceId { get; set; }
