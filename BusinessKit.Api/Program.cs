@@ -39,8 +39,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AdminPanelDev", policy =>
-        policy.WithOrigins("http://localhost:5173")
+    options.AddPolicy("LocalDevOrigins", policy =>
+        policy.WithOrigins("http://localhost:5173", "http://localhost:5174")
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
@@ -191,7 +191,7 @@ else
     });
 }
 
-app.UseCors("AdminPanelDev");
+app.UseCors("LocalDevOrigins");
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAuthentication(); // Must come before UseAuthorization
