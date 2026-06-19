@@ -1,18 +1,32 @@
 using BusinessKit.Application.ContactMessages;
 using BusinessKit.Application.ContactMessages.Dtos;
+using BusinessKit.Application.Email;
 using BusinessKit.Domain.Entities;
 using BusinessKit.Infrastructure.Data;
+using BusinessKit.Infrastructure.Email;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace BusinessKit.Infrastructure.ContactMessages;
 
 public class ContactMessageService : IContactMessageService
 {
     private readonly AppDbContext _context;
+    private readonly IEmailSender _emailSender;
+    private readonly EmailSettings _emailSettings;
+    private readonly ILogger<ContactMessageService> _logger;
 
-    public ContactMessageService(AppDbContext context)
+    public ContactMessageService(
+        AppDbContext context,
+        IEmailSender emailSender,
+        IOptions<EmailSettings> emailOptions,
+        ILogger<ContactMessageService> logger)
     {
         _context = context;
+        _emailSender = emailSender;
+        _emailSettings = emailOptions.Value;
+        _logger = logger;
     }
 
     public async Task<ContactMessageSubmittedDto> CreateAsync(CreateContactMessageDto dto, string? ipAddress)
@@ -32,6 +46,28 @@ public class ContactMessageService : IContactMessageService
 
         _context.ContactMessages.Add(message);
         await _context.SaveChangesAsync();
+
+        if (!string.IsNullOrWhiteSpace(_emailSettings.AdminEmail))
+        {
+            try
+            {
+                var businessName = string.IsNullOrWhiteSpace(_emailSettings.FromName) ? "BusinessKit" : _emailSettings.FromName;
+
+                var (subject, html) = EmailTemplates.ContactMessageAdmin(
+                    dto.FullName,
+                    dto.Email,
+                    dto.Phone,
+                    dto.Subject,
+                    dto.Message,
+                    businessName);
+
+                await _emailSender.SendAsync(_emailSettings.AdminEmail, "Admin", subject, html);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send contact-message admin notification for message #{Id}.", message.Id);
+            }
+        }
 
         return new ContactMessageSubmittedDto
         {

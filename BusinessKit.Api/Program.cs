@@ -3,6 +3,7 @@ using BusinessKit.Application.Auth;
 using BusinessKit.Application.Blog;
 using BusinessKit.Application.BusinessSettings;
 using BusinessKit.Application.ContactMessages;
+using BusinessKit.Application.Email;
 using BusinessKit.Application.Gallery;
 using BusinessKit.Application.ServiceCatalog;
 using BusinessKit.Application.Appointments;
@@ -17,6 +18,7 @@ using BusinessKit.Infrastructure.Blog;
 using BusinessKit.Infrastructure.BusinessSettings;
 using BusinessKit.Infrastructure.ContactMessages;
 using BusinessKit.Infrastructure.Data;
+using BusinessKit.Infrastructure.Email;
 using BusinessKit.Infrastructure.Gallery;
 using BusinessKit.Infrastructure.ServiceCatalog;
 using BusinessKit.Infrastructure.Appointments;
@@ -146,6 +148,12 @@ builder.Services.AddScoped<IFileUploadService>(_ =>
         ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
     return new LocalFileUploadService(Path.Combine(webRootPath, "uploads", "images"));
 });
+
+// Email service
+// IMPORTANT: EmailSettings:Password must be set via environment variable in production (EmailSettings__Password).
+// Set EmailSettings:Enabled=false (the default) to disable all email in development.
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 
 var app = builder.Build();
 

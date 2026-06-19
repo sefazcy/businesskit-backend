@@ -1,10 +1,14 @@
 using BusinessKit.Application.Appointments;
 using BusinessKit.Application.Appointments.Dtos;
+using BusinessKit.Application.Email;
 using BusinessKit.Application.Exceptions;
 using BusinessKit.Domain.Entities;
 using BusinessKit.Infrastructure.Data;
+using BusinessKit.Infrastructure.Email;
 using BusinessKit.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace BusinessKit.Infrastructure.Appointments;
 
@@ -13,10 +17,20 @@ public class AppointmentService : IAppointmentService
     private const int DefaultSlotDurationMinutes = 30;
 
     private readonly AppDbContext _context;
+    private readonly IEmailSender _emailSender;
+    private readonly EmailSettings _emailSettings;
+    private readonly ILogger<AppointmentService> _logger;
 
-    public AppointmentService(AppDbContext context)
+    public AppointmentService(
+        AppDbContext context,
+        IEmailSender emailSender,
+        IOptions<EmailSettings> emailOptions,
+        ILogger<AppointmentService> logger)
     {
         _context = context;
+        _emailSender = emailSender;
+        _emailSettings = emailOptions.Value;
+        _logger = logger;
     }
 
     public async Task<AppointmentDto> CreateAsync(CreateAppointmentRequestDto dto)
@@ -48,7 +62,60 @@ public class AppointmentService : IAppointmentService
         await _context.Entry(appointment).Reference(a => a.BusinessService).LoadAsync();
         await _context.Entry(appointment).Reference(a => a.Customer).LoadAsync();
 
-        return MapToDto(appointment);
+        var appointmentDto = MapToDto(appointment);
+
+        await SendAppointmentCreatedEmailsAsync(appointmentDto);
+
+        return appointmentDto;
+    }
+
+    private async Task SendAppointmentCreatedEmailsAsync(AppointmentDto dto)
+    {
+        var businessName = string.IsNullOrWhiteSpace(_emailSettings.FromName) ? "BusinessKit" : _emailSettings.FromName;
+
+        if (!string.IsNullOrWhiteSpace(_emailSettings.AdminEmail))
+        {
+            try
+            {
+                var (subject, html) = EmailTemplates.AppointmentCreatedAdmin(
+                    dto.Id,
+                    dto.CustomerFullName,
+                    dto.CustomerEmail,
+                    dto.CustomerPhone,
+                    dto.RequestedDate,
+                    dto.RequestedTime,
+                    dto.StaffMemberName,
+                    dto.BusinessServiceTitle,
+                    dto.Note,
+                    businessName);
+
+                await _emailSender.SendAsync(_emailSettings.AdminEmail, "Admin", subject, html);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send appointment-created admin notification for appointment #{Id}.", dto.Id);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.CustomerEmail))
+        {
+            try
+            {
+                var (subject, html) = EmailTemplates.AppointmentCreatedCustomer(
+                    dto.CustomerFullName,
+                    dto.RequestedDate,
+                    dto.RequestedTime,
+                    dto.StaffMemberName,
+                    dto.BusinessServiceTitle,
+                    businessName);
+
+                await _emailSender.SendAsync(dto.CustomerEmail, dto.CustomerFullName, subject, html);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send appointment-created customer confirmation for appointment #{Id}.", dto.Id);
+            }
+        }
     }
 
     public async Task<List<AppointmentDto>> GetAllAsync(
@@ -146,7 +213,56 @@ public class AppointmentService : IAppointmentService
 
         await _context.SaveChangesAsync();
 
-        return MapToDto(appointment);
+        var appointmentDto = MapToDto(appointment);
+
+        await SendAppointmentStatusEmailAsync(appointmentDto);
+
+        return appointmentDto;
+    }
+
+    private async Task SendAppointmentStatusEmailAsync(AppointmentDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.CustomerEmail))
+            return;
+
+        var businessName = string.IsNullOrWhiteSpace(_emailSettings.FromName) ? "BusinessKit" : _emailSettings.FromName;
+
+        if (dto.Status == AppointmentStatuses.Confirmed)
+        {
+            try
+            {
+                var (subject, html) = EmailTemplates.AppointmentConfirmedCustomer(
+                    dto.CustomerFullName,
+                    dto.RequestedDate,
+                    dto.RequestedTime,
+                    dto.StaffMemberName,
+                    dto.BusinessServiceTitle,
+                    businessName);
+
+                await _emailSender.SendAsync(dto.CustomerEmail, dto.CustomerFullName, subject, html);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send appointment-confirmed email for appointment #{Id}.", dto.Id);
+            }
+        }
+        else if (dto.Status == AppointmentStatuses.Cancelled)
+        {
+            try
+            {
+                var (subject, html) = EmailTemplates.AppointmentCancelledCustomer(
+                    dto.CustomerFullName,
+                    dto.RequestedDate,
+                    dto.RequestedTime,
+                    businessName);
+
+                await _emailSender.SendAsync(dto.CustomerEmail, dto.CustomerFullName, subject, html);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send appointment-cancelled email for appointment #{Id}.", dto.Id);
+            }
+        }
     }
 
     public async Task<AppointmentDto?> UpdateAsync(int id, UpdateAppointmentDto dto)
