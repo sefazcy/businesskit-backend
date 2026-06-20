@@ -189,7 +189,137 @@ Password: Admin123!
 
 ---
 
+## Payments (v4.1 — Manual Admin Flow)
+
+- [ ] `POST /api/admin/appointments/{id}/payments` with valid body (amount, currency) → 200, creates Pending payment
+- [ ] `GET /api/admin/appointments/{id}/payments` with token → 200, returns list of payments for that appointment
+- [ ] `GET /api/admin/payments` with token → 200, returns all payments newest-first
+- [ ] `GET /api/admin/payments?status=Pending` with token → 200, filtered
+- [ ] `GET /api/admin/payments?appointmentId={id}` with token → 200, filtered
+- [ ] `GET /api/admin/payments/{id}` with token → 200 or 404
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid` with token → 200, status becomes Paid, paidAt set
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid` when already Paid → 400 (invalid transition)
+- [ ] `PATCH /api/admin/payments/{id}/mark-failed` with token → 200, status becomes Failed, failedAt set
+- [ ] `PATCH /api/admin/payments/{id}/mark-failed` when not Pending → 400 (invalid transition)
+- [ ] `PATCH /api/admin/payments/{id}/mark-refunded` with token → 200, status becomes Refunded, refundedAt set
+- [ ] `PATCH /api/admin/payments/{id}/mark-refunded` when not Paid → 400 (invalid transition)
+- [ ] `GET /api/payments/{id}/status` (no token) → 200, returns only id / status / paidAt
+- [ ] `GET /api/payments/{id}/status` (no token) — response does NOT include notes, failureReason, providerPaymentId, customerId
+- [ ] `GET /api/admin/payments` without token → 401
+
+---
+
+## Payments (v4.5 — Public Checkout Prep)
+
+### POST /api/payments/checkout — create checkout session
+
+**Setup:** ensure appointment #N exists with a `BusinessServiceId` that has `Price > 0`.
+
+- [ ] `POST /api/payments/checkout` with `{ "appointmentId": N }` → 200, response contains:
+  - `paymentId` (integer)
+  - `appointmentId` (integer, equals N)
+  - `amount` (decimal, equals service price)
+  - `currency` (string, matches BusinessSettings.Currency or "TRY" if none set)
+  - `status` = `"Pending"`
+  - `provider` = `"Manual"`
+  - `checkoutUrl` = `"http://localhost:5174/payment-status/{paymentId}"`
+  - `message` = `"Checkout session created. Awaiting payment."`
+
+**Idempotency check:**
+
+- [ ] Call `POST /api/payments/checkout` a second time with the same `appointmentId` → 200, same `paymentId` returned, `message` = `"Pending payment already exists for this appointment."`, no duplicate payment created
+- [ ] Verify via `GET /api/admin/payments?appointmentId=N` that only one Pending payment record exists
+
+**Error cases:**
+
+- [ ] `POST /api/payments/checkout` with `{ "appointmentId": 0 }` → 400 (validation error — appointmentId must be ≥ 1)
+- [ ] `POST /api/payments/checkout` with missing `appointmentId` field → 400 (ModelState validation)
+- [ ] `POST /api/payments/checkout` with `{ "appointmentId": 99999 }` (non-existent appointment) → 404
+- [ ] `POST /api/payments/checkout` for an appointment that has **no service** (BusinessServiceId is null) → 400 with message about missing service
+- [ ] `POST /api/payments/checkout` for an appointment whose service has `Price = 0` → 400 with message about price
+
+**Already-paid case:**
+
+- [ ] Simulate the payment as Paid (via `PATCH /api/payments/{id}/simulate-paid` or admin mark-paid), then call `POST /api/payments/checkout` again for the same appointment → 400 with message `"Appointment already has a completed payment. No new checkout session can be created."`
+
+---
+
+### GET /api/payments/{id}/status — unchanged, verify still safe
+
+- [ ] After creating a checkout session, `GET /api/payments/{paymentId}/status` → 200
+- [ ] Response contains exactly: `id`, `status`, `paidAt` — **no** notes, failureReason, provider, customerId, checkoutUrl, or amount
+- [ ] Unknown payment id → 404
+
+---
+
+### PATCH /api/payments/{id}/simulate-paid — dev simulation endpoint
+
+- [ ] `PATCH /api/payments/{id}/simulate-paid` where payment is Pending → 200, returns full PaymentDto with status `"Paid"` and `paidAt` set
+- [ ] Notification created: admin notifications list shows "Payment received" entry for this payment
+- [ ] If appointment has a `CustomerEmail`, a payment confirmation email is attempted (check logs — non-critical if email not configured)
+- [ ] `PATCH /api/payments/{id}/simulate-paid` where payment is already Paid → 400 with transition error message
+- [ ] `PATCH /api/payments/{id}/simulate-paid` where payment id doesn't exist → 404
+
+---
+
+### Admin visibility
+
+- [ ] After `POST /api/payments/checkout` creates a payment, `GET /api/admin/payments` (with token) shows the new Pending payment in the list
+- [ ] `GET /api/admin/payments/{paymentId}` (with token) → 200, full PaymentDto including `providerCheckoutUrl` = `"http://localhost:5174/payment-status/{paymentId}"`
+- [ ] Admin panel → Payments page shows the new payment with status badge "Pending"
+- [ ] After `simulate-paid`, admin Payments page shows updated status badge "Paid" and paidAt timestamp
+
+---
+
+### Full end-to-end flow (Swagger walkthrough)
+
+1. **Pick or create an appointment with a service:**
+   - Use an existing appointment or `POST /api/appointments` with a valid `businessServiceId`
+   - Note the `appointmentId`
+
+2. **Create checkout session:**
+   ```
+   POST /api/payments/checkout
+   Body: { "appointmentId": <id> }
+   ```
+   - Expect 200 with `paymentId`, `checkoutUrl`, `status: "Pending"`
+
+3. **Verify idempotency:**
+   ```
+   POST /api/payments/checkout
+   Body: { "appointmentId": <same id> }
+   ```
+   - Expect same `paymentId`, message confirms existing payment found
+
+4. **Poll payment status (as PublicSite would):**
+   ```
+   GET /api/payments/{paymentId}/status
+   ```
+   - Expect `status: "Pending"`, `paidAt: null`
+
+5. **Simulate payment success:**
+   ```
+   PATCH /api/payments/{paymentId}/simulate-paid
+   ```
+   - Expect 200 with `status: "Paid"`, `paidAt` set
+
+6. **Poll status again:**
+   ```
+   GET /api/payments/{paymentId}/status
+   ```
+   - Expect `status: "Paid"`, `paidAt` is set
+
+7. **Verify in admin:**
+   ```
+   GET /api/admin/payments?appointmentId=<id>   (with token)
+   ```
+   - Expect one payment record with status `Paid`
+
+---
+
 ## Swagger
 
 - [ ] `GET /swagger` loads and displays all endpoints grouped by tag
 - [ ] Clicking "Authorize" and pasting a valid Bearer token allows protected endpoints to succeed
+- [ ] `Payments (Public)` tag shows: `GET /api/payments/{id}/status`, `POST /api/payments/checkout`, `PATCH /api/payments/{id}/simulate-paid`
+- [ ] Swagger summary for `simulate-paid` clearly reads "[DEV ONLY]" to flag development-only use

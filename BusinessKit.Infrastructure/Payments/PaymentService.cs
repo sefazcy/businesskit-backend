@@ -228,6 +228,65 @@ public class PaymentService : IPaymentService
         };
     }
 
+    public async Task<PaymentCheckoutResponseDto?> CreatePublicCheckoutAsync(int appointmentId)
+    {
+        var appointment = await _context.Appointments
+            .Include(a => a.BusinessService)
+            .FirstOrDefaultAsync(a => a.Id == appointmentId);
+
+        if (appointment == null)
+            return null;
+
+        if (appointment.BusinessServiceId == null || appointment.BusinessService == null)
+            throw new InvalidOperationException(
+                "Appointment does not have an associated service. Cannot determine payment amount.");
+
+        var amount = appointment.BusinessService.Price;
+        if (amount <= 0)
+            throw new InvalidOperationException(
+                "The service for this appointment has no price configured. Cannot create a payment.");
+
+        // Idempotency: return the existing Pending payment if one already exists
+        var existingPending = await _context.Payments
+            .FirstOrDefaultAsync(p => p.AppointmentId == appointmentId && p.Status == PaymentStatuses.Pending);
+
+        if (existingPending != null)
+            return MapToCheckoutDto(existingPending, "Pending payment already exists for this appointment.");
+
+        // Block checkout if appointment already has a completed payment
+        var hasPaid = await _context.Payments
+            .AnyAsync(p => p.AppointmentId == appointmentId && p.Status == PaymentStatuses.Paid);
+
+        if (hasPaid)
+            throw new InvalidOperationException(
+                "Appointment already has a completed payment. No new checkout session can be created.");
+
+        // Resolve currency from business settings; fall back to TRY
+        var settings = await _context.BusinessSettings.FirstOrDefaultAsync();
+        var currency = settings?.Currency?.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(currency))
+            currency = "TRY";
+
+        var payment = new Payment
+        {
+            AppointmentId = appointmentId,
+            CustomerId = appointment.CustomerId,
+            Amount = amount,
+            Currency = currency,
+            Status = PaymentStatuses.Pending,
+            Provider = _paymentProvider.ProviderName,
+        };
+
+        _context.Payments.Add(payment);
+        await _context.SaveChangesAsync(); // persists so payment.Id is assigned
+
+        // Build placeholder checkout URL with the newly assigned payment ID
+        payment.ProviderCheckoutUrl = $"http://localhost:5174/payment-status/{payment.Id}";
+        await _context.SaveChangesAsync();
+
+        return MapToCheckoutDto(payment, "Checkout session created. Awaiting payment.");
+    }
+
     private static PaymentDto MapToDto(Payment p) => new()
     {
         Id = p.Id,
@@ -259,5 +318,17 @@ public class PaymentService : IPaymentService
         FailedAt = p.FailedAt,
         RefundedAt = p.RefundedAt,
         CreatedAt = p.CreatedAt
+    };
+
+    private static PaymentCheckoutResponseDto MapToCheckoutDto(Payment p, string message) => new()
+    {
+        PaymentId = p.Id,
+        AppointmentId = p.AppointmentId,
+        Amount = p.Amount,
+        Currency = p.Currency,
+        Status = p.Status,
+        Provider = p.Provider,
+        CheckoutUrl = p.ProviderCheckoutUrl,
+        Message = message,
     };
 }
