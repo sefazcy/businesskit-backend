@@ -456,6 +456,48 @@ If `BusinessSettings.Currency` contains an old invalid value (e.g., `"USDEWQ"` s
 
 ---
 
+## Payments (v5.7 — Provider Config Infrastructure)
+
+### Build
+
+- [ ] `dotnet build --configuration Release` completes with 0 errors and 0 warnings
+
+### Default — ActiveProvider = "Manual"
+
+Verify `appsettings.json` has `"PaymentProvider": { "ActiveProvider": "Manual" }` before running.
+
+- [ ] `POST /api/payments/checkout` with valid `appointmentId` → 200, `provider: "Manual"`, `checkoutUrl` set
+- [ ] Idempotency: second call with same `appointmentId` → 200, same `paymentId`, no duplicate
+- [ ] `GET /api/payments/{id}/status` → 200, `status: "Pending"`
+- [ ] `PATCH /api/payments/{id}/simulate-paid` (Development) → 200, `status: "Paid"`
+- [ ] `GET /api/admin/payments/summary` with token → 200, counts and `totalsByCurrency` present
+- [ ] No external API call or credential required
+
+### Unsupported provider — ActiveProvider = "Iyzico"
+
+**Temporarily** edit `appsettings.json`: `"ActiveProvider": "Iyzico"`, restart the app, then:
+
+- [ ] `POST /api/payments/checkout` → 400, body contains `"Payment provider 'Iyzico' is not implemented yet."`
+- [ ] `GET /api/payments/{id}/status` still returns 200 (no factory call for status reads)
+- [ ] App starts and serves other endpoints normally (factory error is per-request, not startup)
+- [ ] **Restore** `"ActiveProvider": "Manual"` after this test
+
+### Unknown provider — ActiveProvider = "GhostPay"
+
+**Temporarily** edit `appsettings.json`: `"ActiveProvider": "GhostPay"`, restart the app, then:
+
+- [ ] `POST /api/payments/checkout` → 400, body contains `"Payment provider 'GhostPay' is not supported."`
+- [ ] **Restore** `"ActiveProvider": "Manual"` after this test
+
+### Empty/null provider — falls back to Manual
+
+**Temporarily** edit `appsettings.json`: `"ActiveProvider": ""`, restart, then:
+
+- [ ] `POST /api/payments/checkout` → 200, `provider: "Manual"` (empty value defaults to Manual)
+- [ ] **Restore** `"ActiveProvider": "Manual"` after this test
+
+---
+
 ## Swagger
 
 - [ ] `GET /swagger` loads and displays all endpoints grouped by tag

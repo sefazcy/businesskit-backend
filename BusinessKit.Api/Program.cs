@@ -163,6 +163,8 @@ builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // Payment services
+builder.Services.Configure<PaymentProviderOptions>(
+    builder.Configuration.GetSection(PaymentProviderOptions.SectionName));
 // Providers are registered individually so the factory can resolve them by type.
 // v5.8: register IyzicoPaymentProvider here alongside ManualPaymentProvider.
 builder.Services.AddScoped<ManualPaymentProvider>();
