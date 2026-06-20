@@ -10,10 +10,12 @@ namespace BusinessKit.Api.Controllers;
 public class PaymentsController : ControllerBase
 {
     private readonly IPaymentService _paymentService;
+    private readonly IWebHostEnvironment _env;
 
-    public PaymentsController(IPaymentService paymentService)
+    public PaymentsController(IPaymentService paymentService, IWebHostEnvironment env)
     {
         _paymentService = paymentService;
+        _env = env;
     }
 
     /// <summary>
@@ -57,14 +59,19 @@ public class PaymentsController : ControllerBase
     }
 
     /// <summary>
-    /// [DEV ONLY] Simulates a successful payment by marking a Pending payment as Paid.
-    /// Triggers the same notifications and email as admin mark-paid.
-    /// This endpoint exists for development and manual testing only — do not expose
-    /// in production without authentication and environment gating.
+    /// [DEV ONLY — Development environment only]
+    /// Simulates a successful payment by marking a Pending payment as Paid.
+    /// Triggers the same notifications and email as the admin mark-paid action.
+    /// Available ONLY when the application is running in the Development environment.
+    /// Returns 404 in all other environments so the endpoint does not appear to exist.
+    /// NOT for production use — no real payment provider is involved.
     /// </summary>
     [HttpPatch("{id:int}/simulate-paid")]
     public async Task<IActionResult> SimulatePaid(int id)
     {
+        if (!_env.IsDevelopment())
+            return NotFound();
+
         try
         {
             var payment = await _paymentService.MarkPaidAsync(id);

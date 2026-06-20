@@ -317,9 +317,33 @@ Password: Admin123!
 
 ---
 
+## Payments (v4.7 — simulate-paid environment gating)
+
+### PATCH /api/payments/{id}/simulate-paid — Development only
+
+**In Development environment (`ASPNETCORE_ENVIRONMENT=Development`):**
+
+- [ ] `PATCH /api/payments/{id}/simulate-paid` for a Pending payment → 200, returns full PaymentDto with `status: "Paid"` and `paidAt` set
+- [ ] `PATCH /api/payments/{id}/simulate-paid` for a Paid payment → 400 with transition error message (existing behavior)
+- [ ] `PATCH /api/payments/{id}/simulate-paid` for a non-existent id → 404 with `{ message: "Payment with id X was not found." }`
+
+**In non-Development environments (Staging, Production, etc.):**
+
+- [ ] `PATCH /api/payments/{id}/simulate-paid` → 404 (plain, no body) — the endpoint appears not to exist
+- [ ] The payment record is NOT modified (payment remains Pending) — verify via admin GET after the call
+- [ ] No error details, internal state, or provider information are exposed
+
+**Unchanged endpoints (must still work in all environments):**
+
+- [ ] `POST /api/payments/checkout` with valid `appointmentId` → 200, checkout session created
+- [ ] `GET /api/payments/{id}/status` → 200, returns `id`, `status`, `paidAt` only
+- [ ] Both endpoints work with no `Authorization` header
+
+---
+
 ## Swagger
 
 - [ ] `GET /swagger` loads and displays all endpoints grouped by tag
 - [ ] Clicking "Authorize" and pasting a valid Bearer token allows protected endpoints to succeed
 - [ ] `Payments (Public)` tag shows: `GET /api/payments/{id}/status`, `POST /api/payments/checkout`, `PATCH /api/payments/{id}/simulate-paid`
-- [ ] Swagger summary for `simulate-paid` clearly reads "[DEV ONLY]" to flag development-only use
+- [ ] Swagger summary for `simulate-paid` reads "[DEV ONLY — Development environment only]" and states it returns 404 in other environments
