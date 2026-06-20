@@ -43,7 +43,7 @@ public class BusinessSettingsService : IBusinessSettingsService
         settings.TwitterUrl = dto.Twitter;
         settings.WebsiteUrl = dto.Website;
         settings.WorkingHours = dto.WorkingHours;
-        settings.Currency = dto.Currency;
+        settings.Currency = dto.Currency.Trim().ToUpperInvariant();
         settings.ThemeColor = dto.ThemeColor;
 
         await _context.SaveChangesAsync();

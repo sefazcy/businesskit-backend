@@ -341,6 +341,44 @@ Password: Admin123!
 
 ---
 
+## Business Settings (v4.9 — currency validation)
+
+### PUT /api/admin/business-settings — currency field
+
+**Valid currencies (case-insensitive input, stored as uppercase):**
+
+- [ ] `PUT /api/admin/business-settings` with `"currency": "TRY"` (with full valid body) → 200, response `currency` = `"TRY"`
+- [ ] `PUT /api/admin/business-settings` with `"currency": "USD"` → 200, response `currency` = `"USD"`
+- [ ] `PUT /api/admin/business-settings` with `"currency": "EUR"` → 200, response `currency` = `"EUR"`
+- [ ] `PUT /api/admin/business-settings` with `"currency": "GBP"` → 200, response `currency` = `"GBP"`
+- [ ] `PUT /api/admin/business-settings` with `"currency": "try"` (lowercase) → 200, response `currency` = `"TRY"` (normalized)
+- [ ] `PUT /api/admin/business-settings` with `"currency": "  usd  "` (with whitespace) → 200, response `currency` = `"USD"` (trimmed + normalized)
+
+**Invalid currencies:**
+
+- [ ] `PUT /api/admin/business-settings` with `"currency": "USDEWQ"` → 400, response body contains `"Currency must be one of: TRY, USD, EUR, GBP."`
+- [ ] `PUT /api/admin/business-settings` with `"currency": "JPY"` → 400, same error message
+- [ ] `PUT /api/admin/business-settings` with `"currency": ""` (empty string) → 400 (fails `[Required]` or `[AllowedCurrency]`)
+- [ ] `PUT /api/admin/business-settings` without `currency` field → 400 (missing required field)
+- [ ] No payment record is modified when settings update fails
+
+**GET endpoint unchanged:**
+
+- [ ] `GET /api/business-settings` → 200 (or 404 if never set), currency reflects the stored value
+- [ ] `GET /api/admin/business-settings` with token → same
+
+---
+
+### Checkout — stale invalid currency in DB
+
+If `BusinessSettings.Currency` contains an old invalid value (e.g., `"USDEWQ"` stored before v4.9):
+
+- [ ] `POST /api/payments/checkout` with a valid `appointmentId` → 200, response `currency` = `"TRY"` (safe fallback applied)
+- [ ] The checkout does NOT return an error due to the stale DB value
+- [ ] After updating settings to `"EUR"` (valid), a new checkout for a new appointment returns `currency` = `"EUR"`
+
+---
+
 ## Swagger
 
 - [ ] `GET /swagger` loads and displays all endpoints grouped by tag

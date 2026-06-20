@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BusinessKit.Application.BusinessSettings.Validation;
 
 namespace BusinessKit.Application.BusinessSettings.Dtos;
 
@@ -43,7 +44,8 @@ public class UpdateBusinessSettingsDto
 
     [Required]
     [MaxLength(10)]
-    public string Currency { get; set; } = "USD";
+    [AllowedCurrency]
+    public string Currency { get; set; } = "TRY";
 
     [MaxLength(20)]
     public string? ThemeColor { get; set; }

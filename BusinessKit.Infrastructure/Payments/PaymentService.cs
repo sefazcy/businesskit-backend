@@ -261,11 +261,10 @@ public class PaymentService : IPaymentService
             throw new InvalidOperationException(
                 "Appointment already has a completed payment. No new checkout session can be created.");
 
-        // Resolve currency from business settings; fall back to TRY
+        // Resolve currency from business settings; fall back to TRY for missing or invalid stored values
         var settings = await _context.BusinessSettings.FirstOrDefaultAsync();
-        var currency = settings?.Currency?.Trim().ToUpperInvariant();
-        if (string.IsNullOrWhiteSpace(currency))
-            currency = "TRY";
+        var rawCurrency = settings?.Currency?.Trim().ToUpperInvariant();
+        var currency = CurrencyCodes.IsValid(rawCurrency) ? rawCurrency! : CurrencyCodes.TRY;
 
         var payment = new Payment
         {
