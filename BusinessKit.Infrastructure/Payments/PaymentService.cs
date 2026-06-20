@@ -297,8 +297,15 @@ public class PaymentService : IPaymentService
         var providerResult = await provider.CreateCheckoutAsync(checkoutRequest);
 
         if (!providerResult.IsSuccess)
+        {
+            // Mark as Failed so this record is not returned by the Pending idempotency check on retry.
+            payment.Status = PaymentStatuses.Failed;
+            payment.FailedAt = DateTime.UtcNow;
+            payment.FailureReason = providerResult.ErrorMessage;
+            await _context.SaveChangesAsync();
             throw new InvalidOperationException(
                 providerResult.ErrorMessage ?? "Payment provider failed to create checkout session.");
+        }
 
         payment.ProviderPaymentId = providerResult.ProviderPaymentId;
         payment.ProviderCheckoutUrl = providerResult.CheckoutUrl;

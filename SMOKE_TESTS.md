@@ -12,6 +12,32 @@ Password: Admin123!
 
 ---
 
+## Configuration & Secrets
+
+Notes moved here from `appsettings.json` (JSON does not support comments).
+
+**JWT**
+- `JwtSettings:SecretKey` in `appsettings.json` is a development-only placeholder.
+- In production, override via environment variable: `JwtSettings__SecretKey=<real-secret>`
+- Never commit a real secret key to source control.
+
+**Email**
+- `EmailSettings:Password` must be set via environment variable in production: `EmailSettings__Password=<smtp-password>`
+- Keep `Enabled: false` in development — the app starts and works without any SMTP config.
+
+**Iyzico sandbox credentials**
+- Do not add real credentials to `appsettings.json` — this file is tracked in git.
+- Supply `ApiKey` and `SecretKey` via one of:
+  - `dotnet user-secrets set "Iyzico:ApiKey" "<your-key>"`
+  - Environment variables: `Iyzico__ApiKey`, `Iyzico__SecretKey`
+  - A local `appsettings.Local.json` (listed in `.gitignore`)
+
+**Payment provider**
+- `PaymentProvider:ActiveProvider` accepted values: `"Manual"`, `"Iyzico"`.
+- An unsupported value causes checkout to fail clearly per-request — the app still starts.
+
+---
+
 ## Health
 
 - [ ] `GET /api/health` → 200, body contains `"status":"healthy"` and `"timestamp"`
@@ -494,6 +520,69 @@ Verify `appsettings.json` has `"PaymentProvider": { "ActiveProvider": "Manual" }
 **Temporarily** edit `appsettings.json`: `"ActiveProvider": ""`, restart, then:
 
 - [ ] `POST /api/payments/checkout` → 200, `provider: "Manual"` (empty value defaults to Manual)
+- [ ] **Restore** `"ActiveProvider": "Manual"` after this test
+
+---
+
+## Payments (v5.8 — Iyzico Sandbox Integration)
+
+### Build
+
+- [ ] `dotnet build --configuration Release` completes with 0 errors and 0 warnings
+
+### Secrets safety
+
+- [ ] `appsettings.json` does NOT contain real Iyzico ApiKey or SecretKey — values are empty strings
+- [ ] `appsettings.Local.json` is listed in `.gitignore` (can hold real sandbox creds locally without committing)
+- [ ] `git status` shows no untracked secrets file
+
+### ActiveProvider = "Manual" — unchanged behavior
+
+- [ ] `POST /api/payments/checkout` → 200, `provider: "Manual"`, `checkoutUrl` set
+- [ ] Idempotency: second call returns same `paymentId`
+- [ ] `PATCH /api/payments/{id}/simulate-paid` (Development) → 200, `status: "Paid"`
+- [ ] `GET /api/admin/payments/summary` with token → 200
+- [ ] Admin mark-paid, mark-failed, mark-refunded all return 200
+
+### ActiveProvider = "Iyzico", no credentials (empty ApiKey/SecretKey)
+
+**Temporarily** set `"ActiveProvider": "Iyzico"` in `appsettings.json`, leave `ApiKey` and `SecretKey` empty, restart, then:
+
+- [ ] `POST /api/payments/checkout` → 400, body contains `"Iyzico sandbox credentials are not configured."`
+- [ ] App starts normally — other endpoints (`GET /api/health`, admin endpoints, etc.) still work
+- [ ] `GET /api/payments/{id}/status` still returns 200 (no factory call for status reads)
+- [ ] Provider does NOT fall back to Manual — checkout fails rather than silently using Manual
+- [ ] **Restore** `"ActiveProvider": "Manual"` after this test
+
+### Provider failure persistence and idempotency (v5.8 bug fix)
+
+This test verifies that a failed provider attempt does not leave a broken Pending record that locks out future retries. Set `"ActiveProvider": "Iyzico"` with empty credentials, restart, then:
+
+1. Use a fresh appointment that has no existing payment (or create a new booking).
+2. `POST /api/payments/checkout` with that `appointmentId` → expect **400**, body `"Iyzico sandbox credentials are not configured."`
+3. `GET /api/admin/payments?appointmentId={id}` with token → the payment record must have `status: "Failed"` and `failureReason: "Iyzico sandbox credentials are not configured."` — it must **not** have `status: "Pending"` or a non-null `checkoutUrl`
+4. `POST /api/payments/checkout` again for the **same** `appointmentId` → expect **400** again with the same Iyzico credentials error — must **not** return `"Pending payment already exists for this appointment."`
+5. `GET /api/admin/payments?appointmentId={id}` → only two `Failed` records (one per attempt) — no Pending record
+6. **Restore** `"ActiveProvider": "Manual"` and restart
+7. `POST /api/payments/checkout` for the same `appointmentId` → **200**, `provider: "Manual"`, `status: "Pending"`, `checkoutUrl` populated
+8. Repeat checkout → **200** idempotency, same `paymentId` returned, `"Pending payment already exists"` message — confirms Manual idempotency is unaffected
+
+### ActiveProvider = "Iyzico", credentials supplied
+
+**Temporarily** supply sandbox credentials via user-secrets or `appsettings.Local.json`:
+```
+dotnet user-secrets set "Iyzico:ApiKey" "sandbox_key_here"
+dotnet user-secrets set "Iyzico:SecretKey" "sandbox_secret_here"
+```
+Set `"ActiveProvider": "Iyzico"`, restart, then:
+
+- [ ] `POST /api/payments/checkout` → 400, body contains `"Iyzico sandbox checkout initialization is not yet implemented"` (real HTTP call is a v5.9/v6.0 TODO)
+- [ ] No real payment is charged — this is expected skeleton behavior
+- [ ] **Restore** `"ActiveProvider": "Manual"` after this test
+
+### Unknown provider still fails clearly
+
+- [ ] Temporarily set `"ActiveProvider": "GhostPay"` → `POST /api/payments/checkout` → 400, `"Payment provider 'GhostPay' is not supported."`
 - [ ] **Restore** `"ActiveProvider": "Manual"` after this test
 
 ---

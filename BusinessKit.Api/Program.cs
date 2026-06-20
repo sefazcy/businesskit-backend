@@ -165,9 +165,12 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 // Payment services
 builder.Services.Configure<PaymentProviderOptions>(
     builder.Configuration.GetSection(PaymentProviderOptions.SectionName));
-// Providers are registered individually so the factory can resolve them by type.
-// v5.8: register IyzicoPaymentProvider here alongside ManualPaymentProvider.
+builder.Services.Configure<IyzicoOptions>(
+    builder.Configuration.GetSection(IyzicoOptions.SectionName));
+// Providers are registered individually so the factory resolves them by type.
+// v6.0: register additional providers here as they are implemented.
 builder.Services.AddScoped<ManualPaymentProvider>();
+builder.Services.AddScoped<IyzicoPaymentProvider>();
 builder.Services.AddScoped<IPaymentProviderFactory, PaymentProviderFactory>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 

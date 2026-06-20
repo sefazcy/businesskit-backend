@@ -493,3 +493,6 @@ $RECYCLE.BIN/
 BusinessKit.Api/wwwroot/uploads/images/*
 !BusinessKit.Api/wwwroot/uploads/images/.gitkeep
 
+
+# Local developer overrides — safe place for secrets that must not reach git
+appsettings.Local.json

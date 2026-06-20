@@ -7,11 +7,16 @@ namespace BusinessKit.Infrastructure.Payments;
 public class PaymentProviderFactory : IPaymentProviderFactory
 {
     private readonly ManualPaymentProvider _manual;
+    private readonly IyzicoPaymentProvider _iyzico;
     private readonly PaymentProviderOptions _options;
 
-    public PaymentProviderFactory(ManualPaymentProvider manual, IOptions<PaymentProviderOptions> options)
+    public PaymentProviderFactory(
+        ManualPaymentProvider manual,
+        IyzicoPaymentProvider iyzico,
+        IOptions<PaymentProviderOptions> options)
     {
         _manual = manual;
+        _iyzico = iyzico;
         _options = options.Value;
     }
 
@@ -24,8 +29,7 @@ public class PaymentProviderFactory : IPaymentProviderFactory
         return name switch
         {
             PaymentProviders.Manual => _manual,
-            PaymentProviders.Iyzico => throw new InvalidOperationException(
-                $"Payment provider '{PaymentProviders.Iyzico}' is not implemented yet."),
+            PaymentProviders.Iyzico => _iyzico,
             _ => throw new InvalidOperationException(
                 $"Payment provider '{name}' is not supported.")
         };
