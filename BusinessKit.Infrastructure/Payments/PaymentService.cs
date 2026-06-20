@@ -286,6 +286,46 @@ public class PaymentService : IPaymentService
         return MapToCheckoutDto(payment, "Checkout session created. Awaiting payment.");
     }
 
+    public async Task<PaymentStatsDto> GetStatsAsync(DateTime? fromDate = null, DateTime? toDate = null)
+    {
+        var query = _context.Payments.AsQueryable();
+
+        if (fromDate.HasValue)
+            query = query.Where(p => p.CreatedAt >= fromDate.Value);
+        if (toDate.HasValue)
+            query = query.Where(p => p.CreatedAt <= toDate.Value);
+
+        var rows = await query
+            .Select(p => new { p.Currency, p.Status, p.Amount })
+            .ToListAsync();
+
+        var totalsByCurrency = rows
+            .GroupBy(p => string.IsNullOrWhiteSpace(p.Currency)
+                ? "UNKNOWN"
+                : p.Currency.Trim().ToUpperInvariant())
+            .OrderBy(g => g.Key)
+            .Select(g => new PaymentCurrencySummaryDto
+            {
+                Currency = g.Key,
+                PendingAmount  = g.Where(p => p.Status == PaymentStatuses.Pending).Sum(p => p.Amount),
+                PaidAmount     = g.Where(p => p.Status == PaymentStatuses.Paid).Sum(p => p.Amount),
+                FailedAmount   = g.Where(p => p.Status == PaymentStatuses.Failed).Sum(p => p.Amount),
+                RefundedAmount = g.Where(p => p.Status == PaymentStatuses.Refunded).Sum(p => p.Amount),
+                TotalAmount    = g.Sum(p => p.Amount),
+            })
+            .ToList();
+
+        return new PaymentStatsDto
+        {
+            TotalCount    = rows.Count,
+            PendingCount  = rows.Count(p => p.Status == PaymentStatuses.Pending),
+            PaidCount     = rows.Count(p => p.Status == PaymentStatuses.Paid),
+            FailedCount   = rows.Count(p => p.Status == PaymentStatuses.Failed),
+            RefundedCount = rows.Count(p => p.Status == PaymentStatuses.Refunded),
+            TotalsByCurrency = totalsByCurrency,
+        };
+    }
+
     private static PaymentDto MapToDto(Payment p) => new()
     {
         Id = p.Id,

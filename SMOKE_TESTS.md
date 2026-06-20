@@ -379,6 +379,45 @@ If `BusinessSettings.Currency` contains an old invalid value (e.g., `"USDEWQ"` s
 
 ---
 
+## Payments (v5.3 — Summary Statistics)
+
+### Auth
+
+- [ ] `GET /api/admin/payments/summary` without Bearer token → 401 Unauthorized
+- [ ] `GET /api/admin/payments/summary` with valid admin Bearer token → 200 OK
+
+### Response shape
+
+- [ ] Response body contains top-level integer fields: `totalCount`, `pendingCount`, `paidCount`, `failedCount`, `refundedCount`
+- [ ] Response body contains `totalsByCurrency` array
+- [ ] Each entry in `totalsByCurrency` has: `currency`, `pendingAmount`, `paidAmount`, `failedAmount`, `refundedAmount`, `totalAmount`
+- [ ] Counts add up correctly: `pendingCount + paidCount + failedCount + refundedCount ≤ totalCount` (remaining are Cancelled)
+- [ ] `totalsByCurrency` is sorted alphabetically by currency
+
+### Currency safety
+
+- [ ] If any payment has a blank or invalid currency, the endpoint does not crash
+- [ ] Such payments appear under currency `"UNKNOWN"` in `totalsByCurrency`
+
+### Date filters (optional)
+
+- [ ] `GET /api/admin/payments/summary?fromDate=2025-01-01` → returns only payments created on or after 2025-01-01
+- [ ] `GET /api/admin/payments/summary?toDate=2025-12-31` → returns only payments created on or before 2025-12-31
+- [ ] Both filters combined narrow the result correctly
+- [ ] Omitting both filters returns stats for all payments
+
+### No regressions
+
+- [ ] `GET /api/admin/payments` still returns the full payment list
+- [ ] `GET /api/admin/payments/{id}` still returns a single payment
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid` still works
+- [ ] `PATCH /api/admin/payments/{id}/mark-failed` still works
+- [ ] `PATCH /api/admin/payments/{id}/mark-refunded` still works
+- [ ] `POST /api/payments/checkout` still creates a checkout session
+- [ ] `GET /api/payments/{id}/status` still returns public payment status
+
+---
+
 ## Swagger
 
 - [ ] `GET /swagger` loads and displays all endpoints grouped by tag

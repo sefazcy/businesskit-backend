@@ -29,6 +29,15 @@ public class AdminPaymentsController : ControllerBase
         return Ok(payments);
     }
 
+    [HttpGet("summary")]
+    public async Task<IActionResult> GetSummary(
+        [FromQuery] DateTime? fromDate,
+        [FromQuery] DateTime? toDate)
+    {
+        var stats = await _paymentService.GetStatsAsync(fromDate, toDate);
+        return Ok(stats);
+    }
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {

@@ -13,4 +13,5 @@ public interface IPaymentService
     Task<PaymentDto?> MarkRefundedAsync(int id, MarkPaymentRefundedDto dto);
     Task<PublicPaymentStatusDto?> GetPublicStatusAsync(int id);
     Task<PaymentCheckoutResponseDto?> CreatePublicCheckoutAsync(int appointmentId);
+    Task<PaymentStatsDto> GetStatsAsync(DateTime? fromDate = null, DateTime? toDate = null);
 }
