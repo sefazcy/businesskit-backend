@@ -15,7 +15,7 @@ namespace BusinessKit.Infrastructure.Payments;
 public class PaymentService : IPaymentService
 {
     private readonly AppDbContext _context;
-    private readonly IPaymentProvider _paymentProvider;
+    private readonly IPaymentProviderFactory _providerFactory;
     private readonly INotificationService _notificationService;
     private readonly IEmailSender _emailSender;
     private readonly EmailSettings _emailSettings;
@@ -23,14 +23,14 @@ public class PaymentService : IPaymentService
 
     public PaymentService(
         AppDbContext context,
-        IPaymentProvider paymentProvider,
+        IPaymentProviderFactory providerFactory,
         INotificationService notificationService,
         IEmailSender emailSender,
         IOptions<EmailSettings> emailOptions,
         ILogger<PaymentService> logger)
     {
         _context = context;
-        _paymentProvider = paymentProvider;
+        _providerFactory = providerFactory;
         _notificationService = notificationService;
         _emailSender = emailSender;
         _emailSettings = emailOptions.Value;
@@ -90,7 +90,7 @@ public class PaymentService : IPaymentService
             Amount = dto.Amount,
             Currency = dto.Currency.Trim().ToUpperInvariant(),
             Status = PaymentStatuses.Pending,
-            Provider = _paymentProvider.ProviderName,
+            Provider = _providerFactory.GetProvider().ProviderName,
             Notes = dto.Notes?.Trim()
         };
 
@@ -266,6 +266,8 @@ public class PaymentService : IPaymentService
         var rawCurrency = settings?.Currency?.Trim().ToUpperInvariant();
         var currency = CurrencyCodes.IsValid(rawCurrency) ? rawCurrency! : CurrencyCodes.TRY;
 
+        var provider = _providerFactory.GetProvider();
+
         var payment = new Payment
         {
             AppointmentId = appointmentId,
@@ -273,14 +275,33 @@ public class PaymentService : IPaymentService
             Amount = amount,
             Currency = currency,
             Status = PaymentStatuses.Pending,
-            Provider = _paymentProvider.ProviderName,
+            Provider = provider.ProviderName,
         };
 
         _context.Payments.Add(payment);
         await _context.SaveChangesAsync(); // persists so payment.Id is assigned
 
-        // Build placeholder checkout URL with the newly assigned payment ID
-        payment.ProviderCheckoutUrl = $"http://localhost:5174/payment-status/{payment.Id}";
+        var checkoutRequest = new CreateCheckoutRequest
+        {
+            PaymentId = payment.Id,
+            Amount = payment.Amount,
+            Currency = payment.Currency,
+            CustomerName = appointment.CustomerFullName,
+            CustomerEmail = appointment.CustomerEmail,
+            Description = appointment.BusinessService?.Title ?? $"Appointment #{appointmentId}",
+            // v5.7: read return/cancel URLs from settings or per-provider config
+            ReturnUrl = $"http://localhost:5174/payment-status/{payment.Id}",
+            CancelUrl = $"http://localhost:5174/payment-status/{payment.Id}",
+        };
+
+        var providerResult = await provider.CreateCheckoutAsync(checkoutRequest);
+
+        if (!providerResult.IsSuccess)
+            throw new InvalidOperationException(
+                providerResult.ErrorMessage ?? "Payment provider failed to create checkout session.");
+
+        payment.ProviderPaymentId = providerResult.ProviderPaymentId;
+        payment.ProviderCheckoutUrl = providerResult.CheckoutUrl;
         await _context.SaveChangesAsync();
 
         return MapToCheckoutDto(payment, "Checkout session created. Awaiting payment.");

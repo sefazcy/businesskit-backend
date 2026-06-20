@@ -163,7 +163,10 @@ builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // Payment services
-builder.Services.AddScoped<IPaymentProvider, ManualPaymentProvider>();
+// Providers are registered individually so the factory can resolve them by type.
+// v5.8: register IyzicoPaymentProvider here alongside ManualPaymentProvider.
+builder.Services.AddScoped<ManualPaymentProvider>();
+builder.Services.AddScoped<IPaymentProviderFactory, PaymentProviderFactory>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 var app = builder.Build();

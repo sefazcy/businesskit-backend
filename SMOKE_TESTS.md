@@ -418,6 +418,44 @@ If `BusinessSettings.Currency` contains an old invalid value (e.g., `"USDEWQ"` s
 
 ---
 
+---
+
+## Payments (v5.6 — Provider Architecture Cleanup)
+
+### Build
+
+- [ ] `dotnet build --configuration Release` completes with 0 errors and 0 warnings
+
+### Provider identity
+
+- [ ] `POST /api/payments/checkout` with a valid `appointmentId` → 200, response `provider` = `"Manual"`
+- [ ] `GET /api/admin/payments/{paymentId}` → `provider` field = `"Manual"` (no other provider is active)
+- [ ] No real API key, external credential, or third-party call is required
+
+### Checkout flow — still works end-to-end
+
+- [ ] `POST /api/payments/checkout` with valid `appointmentId` → 200, response contains `paymentId`, `checkoutUrl`, `status: "Pending"`
+- [ ] `checkoutUrl` = `"http://localhost:5174/payment-status/{paymentId}"` (Manual provider sets this)
+- [ ] Calling `POST /api/payments/checkout` again with the same `appointmentId` → 200, same `paymentId` returned, idempotency message present, no duplicate payment created
+- [ ] `GET /api/payments/{paymentId}/status` → 200, returns `id`, `status: "Pending"`, `paidAt: null`
+
+### simulate-paid still works
+
+- [ ] `PATCH /api/payments/{paymentId}/simulate-paid` (Development only) → 200, `status: "Paid"`, `paidAt` set
+- [ ] After simulate-paid: `GET /api/payments/{paymentId}/status` → `status: "Paid"`, `paidAt` set
+
+### Admin payment actions still work
+
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid` with token → 200
+- [ ] `PATCH /api/admin/payments/{id}/mark-failed` with token → 200
+- [ ] `PATCH /api/admin/payments/{id}/mark-refunded` with token → 200
+
+### Payment summary still works
+
+- [ ] `GET /api/admin/payments/summary` with token → 200, response contains `totalCount`, `pendingCount`, `paidCount`, `totalsByCurrency`
+
+---
+
 ## Swagger
 
 - [ ] `GET /swagger` loads and displays all endpoints grouped by tag
