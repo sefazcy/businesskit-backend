@@ -59,13 +59,14 @@ public class IyzicoPaymentProvider : IPaymentProvider
 
     public Task<PaymentStatusResult> GetPaymentStatusAsync(string providerPaymentId)
     {
-        // TODO v5.9: retrieve payment result from Iyzico using the payment token (providerPaymentId).
-        // Use IyzicoOptions.BaseUrl + ApiKey + SecretKey to authenticate the request.
+        // TODO v6.0: call Iyzico retrieve-payment endpoint using providerPaymentId (the checkout token).
+        // Use IyzicoOptions.BaseUrl + ApiKey + SecretKey to sign and send the request.
+        // On success: map Iyzico payment status to PaymentStatuses constants.
         return Task.FromResult(new PaymentStatusResult
         {
             ProviderPaymentId = providerPaymentId,
             Status = PaymentStatuses.Pending,
-            ErrorMessage = "Iyzico status check is not yet implemented.",
+            ErrorMessage = "Iyzico payment status verification is not yet implemented. Complete in v6.0.",
         });
     }
 }

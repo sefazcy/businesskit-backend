@@ -14,4 +14,5 @@ public interface IPaymentService
     Task<PublicPaymentStatusDto?> GetPublicStatusAsync(int id);
     Task<PaymentCheckoutResponseDto?> CreatePublicCheckoutAsync(int appointmentId);
     Task<PaymentStatsDto> GetStatsAsync(DateTime? fromDate = null, DateTime? toDate = null);
+    Task<PaymentCallbackResult> HandleIyzicoCallbackAsync(IyzicoCallbackRequest request);
 }

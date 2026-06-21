@@ -354,6 +354,17 @@ public class PaymentService : IPaymentService
         };
     }
 
+    public Task<PaymentCallbackResult> HandleIyzicoCallbackAsync(IyzicoCallbackRequest request)
+    {
+        // Real Iyzico SDK verification will replace this stub in v6.0.
+        // Never mark a payment Paid here without confirmed provider-side verification.
+        return Task.FromResult(new PaymentCallbackResult
+        {
+            IsVerified = false,
+            Message = "Iyzico callback verification is not implemented yet.",
+        });
+    }
+
     private static PaymentDto MapToDto(Payment p) => new()
     {
         Id = p.Id,

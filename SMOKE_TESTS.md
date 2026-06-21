@@ -587,6 +587,51 @@ Set `"ActiveProvider": "Iyzico"`, restart, then:
 
 ---
 
+## Payments (v5.9 — Iyzico Callback Infrastructure)
+
+### Build
+
+- [ ] `dotnet build --configuration Release` completes with 0 errors and 0 warnings
+
+### POST /api/payments/iyzico/callback — missing token
+
+- [ ] `POST /api/payments/iyzico/callback` with body `{}` (no token field) → 400, body contains `"Token is required."`
+- [ ] `POST /api/payments/iyzico/callback` with body `{ "token": "" }` (empty token) → 400, body contains `"Token is required."`
+- [ ] `POST /api/payments/iyzico/callback` with body `{ "token": "   " }` (whitespace-only token) → 400, body contains `"Token is required."`
+- [ ] No payment record is modified by any of the above calls
+
+### POST /api/payments/iyzico/callback — sample token (controlled not-implemented response)
+
+- [ ] `POST /api/payments/iyzico/callback` with body `{ "token": "sample-token" }` → 200, response body contains:
+  - `isVerified: false`
+  - `message: "Iyzico callback verification is not implemented yet."`
+- [ ] `POST /api/payments/iyzico/callback` with body `{ "token": "sample-token", "paymentId": 123 }` → 200, same response shape
+- [ ] No payment record is modified — verify via `GET /api/admin/payments` that no status changed to `"Paid"`
+- [ ] No authorization header is required (endpoint is public, as Iyzico POSTs from its servers)
+
+### Safety: callback does not mark payment Paid
+
+- [ ] Create a Pending payment via `POST /api/payments/checkout` with a valid `appointmentId`
+- [ ] Note the `paymentId` returned
+- [ ] Call `POST /api/payments/iyzico/callback` with `{ "token": "any-token", "paymentId": <id> }` → 200, `isVerified: false`
+- [ ] `GET /api/admin/payments/{paymentId}` with token → status is still `"Pending"`, NOT `"Paid"`
+- [ ] `GET /api/payments/{paymentId}/status` → `status: "Pending"`, `paidAt: null`
+
+### No regressions
+
+- [ ] Manual checkout still works: `POST /api/payments/checkout` with valid `appointmentId` → 200, `provider: "Manual"`
+- [ ] `PATCH /api/payments/{id}/simulate-paid` (Development) → 200, `status: "Paid"`
+- [ ] `GET /api/admin/payments/summary` with token → 200, counts and `totalsByCurrency` present
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid`, `mark-failed`, `mark-refunded` all still return 200
+
+### Swagger
+
+- [ ] `GET /swagger` → `Payments (Public)` tag shows `POST /api/payments/iyzico/callback`
+- [ ] Swagger summary for the callback endpoint is visible and accurate
+- [ ] Endpoint appears as public (no lock icon required)
+
+---
+
 ## Swagger
 
 - [ ] `GET /swagger` loads and displays all endpoints grouped by tag
