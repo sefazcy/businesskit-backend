@@ -632,6 +632,115 @@ Set `"ActiveProvider": "Iyzico"`, restart, then:
 
 ---
 
+## Payments (v6.0 — Iyzico Sandbox Checkout Initialization)
+
+### Package
+
+- [ ] `BusinessKit.Infrastructure.csproj` references `Iyzipay` version `2.1.78` (owner: iyzico)
+- [ ] No other Iyzipay-related packages added
+
+### Build
+
+- [ ] `dotnet build --configuration Release` completes with 0 errors and 0 warnings
+
+### Secrets safety
+
+- [ ] `appsettings.json` still has empty `Iyzico:ApiKey`, `Iyzico:SecretKey`, `Iyzico:CallbackUrl`
+- [ ] `appsettings.Local.json` is NOT committed (`git status` shows it as untracked if present locally, or absent)
+- [ ] `appsettings.Local.json` appears in `.gitignore`
+- [ ] `PaymentProvider:ActiveProvider` in committed `appsettings.json` is `"Manual"`
+
+### Local secret setup (run once per developer machine)
+
+Supply sandbox credentials using **one** of these methods:
+
+**Option A — dotnet user-secrets (recommended):**
+```
+cd BusinessKit.Api
+dotnet user-secrets set "Iyzico:ApiKey"      "<your-sandbox-key>"
+dotnet user-secrets set "Iyzico:SecretKey"   "<your-sandbox-secret>"
+dotnet user-secrets set "Iyzico:CallbackUrl" "http://localhost:5000/api/payments/iyzico/callback"
+dotnet user-secrets set "PaymentProvider:ActiveProvider" "Iyzico"
+```
+
+**Option B — appsettings.Local.json (gitignored):**
+Create `BusinessKit.Api/appsettings.Local.json`:
+```json
+{
+  "PaymentProvider": { "ActiveProvider": "Iyzico" },
+  "Iyzico": {
+    "ApiKey":       "<your-sandbox-key>",
+    "SecretKey":    "<your-sandbox-secret>",
+    "CallbackUrl":  "http://localhost:5000/api/payments/iyzico/callback"
+  }
+}
+```
+
+**Option C — environment variables:**
+```
+Iyzico__ApiKey=<key>
+Iyzico__SecretKey=<secret>
+Iyzico__CallbackUrl=http://localhost:5000/api/payments/iyzico/callback
+PaymentProvider__ActiveProvider=Iyzico
+```
+
+### ActiveProvider = "Manual" — no regressions
+
+- [ ] `POST /api/payments/checkout` with valid `appointmentId` → 200, `provider: "Manual"`, `checkoutUrl` set
+- [ ] Idempotency: second call returns same `paymentId`, message `"Pending payment already exists..."`
+- [ ] `PATCH /api/payments/{id}/simulate-paid` (Development) → 200, `status: "Paid"`
+- [ ] `GET /api/admin/payments/summary` with token → 200
+- [ ] Admin mark-paid, mark-failed, mark-refunded still return 200
+
+### ActiveProvider = "Iyzico", no credentials
+
+Set `"ActiveProvider": "Iyzico"`, leave `ApiKey`/`SecretKey`/`CallbackUrl` empty, restart:
+
+- [ ] `POST /api/payments/checkout` → 400, body contains `"Iyzico sandbox credentials are not configured."`
+- [ ] No payment left in `Pending` status — `GET /api/admin/payments?appointmentId={id}` shows `"Failed"` record
+- [ ] Other endpoints unaffected
+
+### ActiveProvider = "Iyzico", credentials set, CallbackUrl missing
+
+Set credentials but leave `CallbackUrl` empty:
+
+- [ ] `POST /api/payments/checkout` → 400, body contains `"Iyzico CallbackUrl is not configured"`
+- [ ] No payment left in `Pending` status — record shows `"Failed"`
+
+### ActiveProvider = "Iyzico", full credentials + CallbackUrl (real sandbox call)
+
+Supply all three values and restart:
+
+- [ ] `POST /api/payments/checkout` with valid `appointmentId` (service with `Price > 0`) → 200, response contains:
+  - `provider: "Iyzico"`
+  - `status: "Pending"`
+  - `checkoutUrl` — non-empty Iyzico sandbox payment page URL (begins with `https://sandbox-api.iyzipay.com` or similar)
+  - `paymentId` (integer)
+- [ ] `GET /api/admin/payments/{paymentId}` with token → `providerPaymentId` is non-empty (the Iyzico checkout token), `providerCheckoutUrl` matches the `checkoutUrl` above
+- [ ] Navigating to the `checkoutUrl` in a browser shows the Iyzico sandbox payment page
+- [ ] **Restore** `"ActiveProvider": "Manual"` after this test
+
+### Iyzico failure response (invalid credentials)
+
+Set `ApiKey` / `SecretKey` to non-empty garbage values (`"bad"` / `"key"`), set a valid `CallbackUrl`:
+
+- [ ] `POST /api/payments/checkout` → 400, body contains `"Iyzico checkout initialization failed:"` followed by the error message from Iyzico
+- [ ] Payment record has `status: "Failed"` and a non-empty `failureReason`
+- [ ] **Restore** correct credentials or revert to `"Manual"` after this test
+
+### Callback endpoint — no regressions
+
+- [ ] `POST /api/payments/iyzico/callback` with empty token → 400, `"Token is required."`
+- [ ] `POST /api/payments/iyzico/callback` with sample token → 200, `isVerified: false`, `"not implemented yet"`
+- [ ] No payment is marked `Paid` by the callback endpoint
+
+### Provider failure persistence
+
+- [ ] After a failed Iyzico attempt, the payment record has `status: "Failed"`, not `"Pending"`
+- [ ] Retrying `POST /api/payments/checkout` for the same `appointmentId` with corrected credentials creates a new attempt — the previous `"Failed"` record does NOT block it
+
+---
+
 ## Swagger
 
 - [ ] `GET /swagger` loads and displays all endpoints grouped by tag

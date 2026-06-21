@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\BusinessKit.Application\BusinessKit.Application.csproj" />
@@ -19,6 +19,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>eeb26cd2-826a-4978-a159-ee4d80cfc796</UserSecretsId>
   </PropertyGroup>
 
 </Project>

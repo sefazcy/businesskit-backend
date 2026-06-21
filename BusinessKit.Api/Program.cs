@@ -39,6 +39,9 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Optional local overrides for secrets (gitignored — use for sandbox API keys in dev)
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("LocalDevOrigins", policy =>
