@@ -170,6 +170,9 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 // Product service
 builder.Services.AddScoped<IProductService, ProductService>();
 
+// Stock movement service
+builder.Services.AddScoped<IStockMovementService, StockMovementService>();
+
 // Payment services
 builder.Services.Configure<PaymentProviderOptions>(
     builder.Configuration.GetSection(PaymentProviderOptions.SectionName));

@@ -14,10 +14,12 @@ namespace BusinessKit.Api.Controllers.Admin;
 public class AdminProductsController : ControllerBase
 {
     private readonly IProductService _productService;
+    private readonly IStockMovementService _stockMovementService;
 
-    public AdminProductsController(IProductService productService)
+    public AdminProductsController(IProductService productService, IStockMovementService stockMovementService)
     {
         _productService = productService;
+        _stockMovementService = stockMovementService;
     }
 
     [HttpGet]
@@ -89,5 +91,22 @@ public class AdminProductsController : ControllerBase
             return NotFound(new { message = $"Product with id {id} was not found." });
 
         return Ok(product);
+    }
+
+    [HttpGet("{productId:int}/stock-movements")]
+    public async Task<IActionResult> GetStockMovements(int productId)
+    {
+        var movements = await _stockMovementService.GetByProductIdAsync(productId);
+        return Ok(movements);
+    }
+
+    [HttpGet("{id:int}/stock-summary")]
+    public async Task<IActionResult> GetStockSummary(int id)
+    {
+        var summary = await _stockMovementService.GetStockSummaryAsync(id);
+        if (summary == null)
+            return NotFound(new { message = $"Product with id {id} was not found." });
+
+        return Ok(summary);
     }
 }

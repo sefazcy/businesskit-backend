@@ -1117,3 +1117,89 @@ page: `id`, `appointmentId`, `customerId`, `amount`, `currency`, `status`, `prov
 - [ ] `PATCH /api/admin/payments/{id}/mark-refunded` Manual Paid → 200
 - [ ] `PATCH /api/admin/payments/{id}/mark-refunded` Iyzico → 400 with guard message
 - [ ] `POST /api/payments/iyzico/callback` with unknown token → 200, `isVerified: false`
+
+---
+
+## Stock Movements (v7.2)
+
+### Auth guard
+
+- [ ] `GET /api/admin/stock-movements` without token → 401
+- [ ] `POST /api/admin/stock-movements` without token → 401
+- [ ] `GET /api/admin/products/{id}/stock-movements` without token → 401
+- [ ] `GET /api/admin/products/{id}/stock-summary` without token → 401
+
+### POST /api/admin/stock-movements — In movement
+
+- [ ] `POST /api/admin/stock-movements` with `{ "productId": {id}, "type": "In", "quantity": 10 }` → 200, response has `type: "In"`, `quantity: 10`, `previousStock: <old>`, `newStock: previousStock + 10`
+- [ ] Product `currentStock` in `GET /api/admin/products/{id}` reflects the new stock after the movement
+- [ ] `POST` In with `quantity: 0` → 400, error mentions "greater than 0"
+- [ ] `POST` In with `quantity: -5` → 400 (DTO Range validation)
+
+### POST /api/admin/stock-movements — Out movement
+
+- [ ] `POST /api/admin/stock-movements` with `{ "productId": {id}, "type": "Out", "quantity": 5 }` when currentStock >= 5 → 200, `newStock = previousStock - 5`
+- [ ] `POST` Out where `quantity` would make stock negative → 400, error mentions "Insufficient stock"
+- [ ] `POST` Out with `quantity: 0` → 400, error mentions "greater than 0"
+
+### POST /api/admin/stock-movements — Adjustment movement
+
+- [ ] `POST /api/admin/stock-movements` with `{ "productId": {id}, "type": "Adjustment", "quantity": 25 }` → 200, `newStock: 25` regardless of previous stock
+- [ ] Product `currentStock` is now 25 after adjustment
+- [ ] `POST` Adjustment with `quantity: 0` → 200, stock is set to 0 (zero adjustment is valid)
+- [ ] `POST` Adjustment with `quantity: -1` → 400, error mentions "cannot be negative"
+
+### POST /api/admin/stock-movements — validation
+
+- [ ] `POST` with missing `productId` → 400
+- [ ] `POST` with `productId: 99999` (non-existent product) → 404, body contains "was not found"
+- [ ] `POST` with missing `type` → 400
+- [ ] `POST` with `type: "Invalid"` → 400, error mentions "not a valid stock movement type"
+- [ ] `POST` with optional `reason` (max 150 chars) and `notes` (max 1000 chars) → 200, fields reflected in response
+- [ ] `POST` with `reason` exceeding 150 chars → 400
+- [ ] `POST` with `notes` exceeding 1000 chars → 400
+
+### POST atomicity
+
+- [ ] After a successful movement, both `StockMovement` record exists and `Product.currentStock` is updated in the same request — verify by checking `GET /api/admin/products/{id}` immediately after `POST /api/admin/stock-movements`
+- [ ] `Product.updatedAt` is newer than before the movement
+
+### GET /api/admin/stock-movements
+
+- [ ] `GET /api/admin/stock-movements` with token → 200, returns array, latest movement first
+- [ ] `GET /api/admin/stock-movements?productId={id}` → 200, only movements for that product
+- [ ] `GET /api/admin/stock-movements?type=In` → 200, only In movements
+- [ ] `GET /api/admin/stock-movements?type=Out` → 200, only Out movements
+- [ ] `GET /api/admin/stock-movements?type=Adjustment` → 200, only Adjustment movements
+- [ ] `GET /api/admin/stock-movements?dateFrom=2026-01-01&dateTo=2026-12-31` → 200, movements within range
+- [ ] `GET /api/admin/stock-movements?take=2` → 200, at most 2 results
+- [ ] Each movement DTO contains `id`, `productId`, `productName`, `productSku`, `type`, `quantity`, `previousStock`, `newStock`, `reason`, `notes`, `createdAt`
+
+### GET /api/admin/products/{productId}/stock-movements
+
+- [ ] `GET /api/admin/products/{productId}/stock-movements` → 200, only that product's movements, latest first
+- [ ] For a product with no movements → 200, empty array
+
+### GET /api/admin/products/{id}/stock-summary
+
+- [ ] `GET /api/admin/products/{id}/stock-summary` → 200, contains `productId`, `productName`, `currentStock`, `minStock`, `isLowStock`, `totalIn`, `totalOut`, `adjustmentCount`, `lastMovementAt`
+- [ ] `totalIn` equals sum of all In movement quantities for that product
+- [ ] `totalOut` equals sum of all Out movement quantities for that product
+- [ ] `adjustmentCount` equals number of Adjustment movements
+- [ ] `isLowStock` matches `minStock > 0 && currentStock <= minStock`
+- [ ] `GET /api/admin/products/99999/stock-summary` → 404
+
+### isLowStock reflects updated stock
+
+- [ ] Create product with `currentStock: 15`, `minStock: 10` → `isLowStock: false`
+- [ ] `POST` Out movement of 6 → `currentStock` becomes 9, `GET /api/admin/products/{id}` shows `isLowStock: true`
+- [ ] `POST` Adjustment to 20 → `currentStock` becomes 20, `isLowStock: false`
+
+### No regressions
+
+- [ ] `GET /api/admin/products` with token → 200 (existing product endpoints unaffected)
+- [ ] `POST /api/admin/products` → 201 (product creation unaffected)
+- [ ] `PUT /api/admin/products/{id}` → 200 (direct stock update via product update still works)
+- [ ] `GET /api/admin/appointments` with token → 200 (appointments unaffected)
+- [ ] `POST /api/payments/checkout` with valid `appointmentId` → 200 (payments unaffected)
+- [ ] `GET /api/admin/customers` with token → 200 (customers unaffected)
