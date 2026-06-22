@@ -854,5 +854,78 @@ dotnet user-secrets set "PaymentProvider:ActiveProvider" "Manual"
 - [ ] `ActiveProvider=Manual` → `POST /api/payments/checkout` → 200, `provider: "Manual"`, `checkoutUrl` set
 - [ ] `PATCH /api/payments/{id}/simulate-paid` (Development) → 200, `status: "Paid"`
 - [ ] `GET /api/admin/payments/summary` with token → 200, counts and `totalsByCurrency` present
-- [ ] Admin mark-paid, mark-failed, mark-refunded still return 200
+- [ ] Admin mark-paid, mark-failed, mark-refunded still return 200 for Manual payments
 - [ ] `GET /api/payments/{id}/status` still returns only `id`, `status`, `paidAt`
+
+---
+
+## Payments (v6.2 — Admin Safety and UX Cleanup)
+
+### Build
+
+- [ ] `dotnet build --configuration Release` completes with 0 errors and 0 warnings
+
+### Provider-aware backend guards — Manual payments (must still work)
+
+- [ ] Create a Manual Pending payment (via admin create or `POST /api/payments/checkout` with Manual active)
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid` with token → 200, `status: "Paid"`
+- [ ] Create another Manual Pending payment
+- [ ] `PATCH /api/admin/payments/{id}/mark-failed` with token → 200, `status: "Failed"`
+- [ ] Take any Manual Paid payment
+- [ ] `PATCH /api/admin/payments/{id}/mark-refunded` with token → 200, `status: "Refunded"`
+
+### Provider-aware backend guards — Iyzico payments (must be blocked)
+
+**Setup:** set `ActiveProvider = "Iyzico"` with credentials, create a checkout (payment will be Iyzico + Pending).
+
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid` for the Iyzico Pending payment → **400**, body contains `"Iyzico payments can only be marked Paid after provider callback verification."`
+- [ ] `PATCH /api/admin/payments/{id}/mark-failed` for the Iyzico Pending payment → **400**, body contains `"Iyzico payments cannot be manually marked as Failed."`
+- [ ] Simulate a Paid Iyzico payment via the callback flow (or use `simulate-paid` in dev)
+- [ ] `PATCH /api/admin/payments/{id}/mark-refunded` for the Iyzico Paid payment → **400**, body contains `"Iyzico refund is not implemented yet."`
+- [ ] Iyzico callback verification still marks Pending → Paid correctly (unaffected by guards)
+
+### Regression checks
+
+- [ ] `GET /api/admin/payments/summary` with token → 200
+- [ ] `GET /api/admin/payments` with token → 200
+- [ ] `POST /api/payments/checkout` (Manual) → 200, `provider: "Manual"`
+- [ ] `PATCH /api/payments/{id}/simulate-paid` (Development) → 200, `status: "Paid"`
+- [ ] `POST /api/payments/iyzico/callback` with unknown token → 200, `isVerified: false`
+
+---
+
+### v6.2 Regression Report — Iyzico admin guard not in committed code
+
+**Date caught:** 2026-06-22
+**Payment ID tested:** 17 (Iyzico, status was Paid before test)
+
+**Request:**
+```
+PATCH /api/admin/payments/17/mark-refunded
+Body: { "notes": "string" }
+```
+
+**Expected:** 400 Bad Request
+```json
+{ "message": "Iyzico refund is not implemented yet. Process refunds through the Iyzico merchant dashboard." }
+```
+
+**Actual:** 200 OK — payment status changed to `"Refunded"`, `refundedAt` set.
+
+**Root cause:** The provider guards in `MarkPaidAsync`, `MarkFailedAsync`, and `MarkRefundedAsync`
+(in `PaymentService.cs`) were added as local working-tree changes but **never committed** in v6.1.
+The running backend binary had no provider checks at all — every payment regardless of provider
+could be manually transitioned to any status.
+
+**Fix (v6.2):** All three guards committed. Backend now blocks Iyzico payments in all three
+admin mark-* endpoints before any status transition is attempted.
+
+**Guard messages (exact):**
+- `mark-paid` Iyzico → `"Iyzico payments can only be marked Paid after provider callback verification."`
+- `mark-failed` Iyzico → `"Iyzico payments cannot be manually marked as Failed."`
+- `mark-refunded` Iyzico → `"Iyzico refund is not implemented yet. Process refunds through the Iyzico merchant dashboard."`
+
+**Note for re-testing:** Payment #17 is now in terminal `Refunded` state. Use a new Iyzico
+Pending payment (create checkout with `ActiveProvider=Iyzico`) or an existing Iyzico Paid
+payment to verify the guards. The `simulate-paid` endpoint (Development) can fast-path an
+Iyzico Pending payment to Paid for the `mark-refunded` guard test.

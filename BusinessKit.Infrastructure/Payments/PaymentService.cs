@@ -113,6 +113,14 @@ public class PaymentService : IPaymentService
         if (payment == null)
             return null;
 
+        if (payment.Provider != PaymentProviders.Manual)
+        {
+            var reason = payment.Provider == PaymentProviders.Iyzico
+                ? "Iyzico payments can only be marked Paid after provider callback verification."
+                : $"Manual status changes are not supported for '{payment.Provider}' payments.";
+            throw new InvalidOperationException(reason);
+        }
+
         if (payment.Status != PaymentStatuses.Pending)
             throw new InvalidOperationException(
                 $"Cannot mark payment as Paid from status '{payment.Status}'. Only Pending payments can be marked as Paid.");
@@ -170,6 +178,14 @@ public class PaymentService : IPaymentService
         if (payment == null)
             return null;
 
+        if (payment.Provider != PaymentProviders.Manual)
+        {
+            var reason = payment.Provider == PaymentProviders.Iyzico
+                ? "Iyzico payments cannot be manually marked as Failed."
+                : $"Manual status changes are not supported for '{payment.Provider}' payments.";
+            throw new InvalidOperationException(reason);
+        }
+
         if (payment.Status != PaymentStatuses.Pending)
             throw new InvalidOperationException(
                 $"Cannot mark payment as Failed from status '{payment.Status}'. Only Pending payments can be marked as Failed.");
@@ -202,6 +218,14 @@ public class PaymentService : IPaymentService
         var payment = await _context.Payments.FindAsync(id);
         if (payment == null)
             return null;
+
+        if (payment.Provider != PaymentProviders.Manual)
+        {
+            var reason = payment.Provider == PaymentProviders.Iyzico
+                ? "Iyzico refund is not implemented yet. Process refunds through the Iyzico merchant dashboard."
+                : $"Manual status changes are not supported for '{payment.Provider}' payments.";
+            throw new InvalidOperationException(reason);
+        }
 
         if (payment.Status != PaymentStatuses.Paid)
             throw new InvalidOperationException(
