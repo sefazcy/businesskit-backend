@@ -32,6 +32,8 @@ using BusinessKit.Infrastructure.Uploads;
 using BusinessKit.Infrastructure.UserManagement;
 using BusinessKit.Application.Payments;
 using BusinessKit.Infrastructure.Payments;
+using BusinessKit.Application.Products;
+using BusinessKit.Infrastructure.Products;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -164,6 +166,9 @@ builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 
 // Notification service
 builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// Product service
+builder.Services.AddScoped<IProductService, ProductService>();
 
 // Payment services
 builder.Services.Configure<PaymentProviderOptions>(

@@ -1032,6 +1032,83 @@ page: `id`, `appointmentId`, `customerId`, `amount`, `currency`, `status`, `prov
 
 - [ ] `GET /api/admin/payments` → 200, list unaffected
 - [ ] `GET /api/admin/payments/{id}` → 200 for known id, 404 for unknown
+
+---
+
+## Products (v7.0 — Product / Inventory Foundation)
+
+### Build
+
+- [ ] `dotnet build --configuration Release` completes with 0 errors and 0 warnings
+
+### Auth guard
+
+- [ ] `GET /api/admin/products` without token → 401
+- [ ] `POST /api/admin/products` without token → 401
+
+### GET /api/admin/products — list
+
+- [ ] `GET /api/admin/products` with token → 200, returns array (empty if none created yet)
+- [ ] `GET /api/admin/products?isActive=true` → 200, returns only active products
+- [ ] `GET /api/admin/products?isActive=false` → 200, returns only inactive products
+- [ ] `GET /api/admin/products?search=coffee` → 200, returns products matching name/sku/category
+- [ ] `GET /api/admin/products?category=Drinks` → 200, filtered by category substring
+- [ ] `GET /api/admin/products?lowStockOnly=true` → 200, returns only products where `minStock > 0 && currentStock <= minStock`
+- [ ] `GET /api/admin/products?take=5` → 200, returns at most 5 products
+- [ ] Response items include: `id`, `name`, `sku`, `category`, `unit`, `currentStock`, `minStock`, `costPrice`, `salePrice`, `isActive`, `isLowStock`, `notes`, `createdAt`, `updatedAt`
+
+### POST /api/admin/products — create
+
+- [ ] `POST /api/admin/products` with valid minimal body `{ "name": "Espresso", "unit": "cup" }` → 201, response contains product with `id`, `isActive: true`, `currentStock: 0`
+- [ ] `POST /api/admin/products` with full body (name, sku, category, unit, currentStock, minStock, costPrice, salePrice, isActive, notes) → 201, all fields reflected in response
+- [ ] `POST /api/admin/products` with `name: ""` (empty) → 400
+- [ ] `POST /api/admin/products` with missing `name` field → 400
+- [ ] `POST /api/admin/products` with missing `unit` field → 400
+- [ ] `POST /api/admin/products` with `currentStock: -1` → 400, error mentions "CurrentStock cannot be negative"
+- [ ] `POST /api/admin/products` with `minStock: -5` → 400, error mentions "MinStock cannot be negative"
+- [ ] `POST /api/admin/products` with `costPrice: -10` → 400, error mentions "CostPrice cannot be negative"
+- [ ] `POST /api/admin/products` with `salePrice: -0.01` → 400, error mentions "SalePrice cannot be negative"
+- [ ] `POST /api/admin/products` with a duplicate SKU → 409, body contains `"already exists"`
+
+### GET /api/admin/products/{id}
+
+- [ ] `GET /api/admin/products/{id}` for a created product → 200, full ProductDto
+- [ ] `GET /api/admin/products/99999` → 404, body contains `"was not found"`
+
+### PUT /api/admin/products/{id} — update
+
+- [ ] `PUT /api/admin/products/{id}` with updated name, category, prices → 200, response reflects changes
+- [ ] `PUT /api/admin/products/{id}` with empty name → 400
+- [ ] `PUT /api/admin/products/{id}` with negative stock → 400
+- [ ] `PUT /api/admin/products/99999` → 404
+- [ ] `PUT /api/admin/products/{id}` changing SKU to one already used by another product → 409
+- [ ] `UpdatedAt` is newer than `CreatedAt` after a successful update; `CreatedAt` is unchanged
+
+### PATCH /api/admin/products/{id}/toggle-active
+
+- [ ] `PATCH /api/admin/products/{id}/toggle-active` on an active product → 200, `isActive: false`
+- [ ] `PATCH /api/admin/products/{id}/toggle-active` again → 200, `isActive: true`
+- [ ] `PATCH /api/admin/products/99999/toggle-active` → 404
+
+### GET /api/admin/products/categories
+
+- [ ] `GET /api/admin/products/categories` with token → 200, returns sorted array of distinct non-null category strings
+- [ ] After creating products with categories "Drinks", "Food", "Drinks" → returns `["Drinks", "Food"]` (deduplicated, sorted)
+- [ ] If no products have a category set → returns empty array
+
+### isLowStock computed field
+
+- [ ] Create product with `currentStock: 5`, `minStock: 10` → response has `isLowStock: true`
+- [ ] Create product with `currentStock: 10`, `minStock: 10` → response has `isLowStock: true` (equal is low)
+- [ ] Create product with `currentStock: 11`, `minStock: 10` → response has `isLowStock: false`
+- [ ] Create product with `currentStock: 0`, `minStock: 0` → response has `isLowStock: false` (minStock = 0 means threshold not set)
+
+### No regressions
+
+- [ ] `GET /api/admin/appointments` with token → 200 (appointments unaffected)
+- [ ] `POST /api/payments/checkout` with valid `appointmentId` → 200, `provider: "Manual"` (payments unaffected)
+- [ ] `GET /api/admin/customers` with token → 200 (customers unaffected)
+
 - [ ] `GET /api/admin/payments/summary` → 200, stats unaffected
 - [ ] `PATCH /api/admin/payments/{id}/mark-paid` Manual Pending → 200
 - [ ] `PATCH /api/admin/payments/{id}/mark-paid` Iyzico → 400 with guard message

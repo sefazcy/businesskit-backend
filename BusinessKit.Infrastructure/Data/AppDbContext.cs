@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<Appointment> Appointments { get; set; } = null!;
     public DbSet<StaffWorkingHour> StaffWorkingHours { get; set; } = null!;
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<Product> Products { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
