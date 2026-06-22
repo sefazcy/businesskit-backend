@@ -41,6 +41,29 @@ public class IyzicoPaymentProvider : IPaymentProvider
             };
         }
 
+        if (!_options.IsDevelopment)
+        {
+            if (_options.CallbackUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                return new PaymentProviderResult
+                {
+                    IsSuccess = false,
+                    Provider = ProviderName,
+                    ErrorMessage = "Iyzico CallbackUrl cannot use localhost in non-Development environments. Set a public HTTPS callback URL.",
+                };
+            }
+
+            if (!_options.CallbackUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return new PaymentProviderResult
+                {
+                    IsSuccess = false,
+                    Provider = ProviderName,
+                    ErrorMessage = "Iyzico CallbackUrl must use HTTPS in non-Development environments.",
+                };
+            }
+        }
+
         var iyziOptions = new Iyzipay.Options
         {
             ApiKey = _options.ApiKey,

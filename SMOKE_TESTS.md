@@ -932,6 +932,81 @@ Iyzico Pending payment to Paid for the `mark-refunded` guard test.
 
 ---
 
+## Payments (v6.5 — Production Readiness and Refund Strategy)
+
+### Build
+
+- [ ] `dotnet build --configuration Release` completes with 0 errors and 0 warnings
+
+### Secrets and config safety (no regression)
+
+- [ ] `appsettings.json` still has empty `Iyzico:ApiKey`, `Iyzico:SecretKey`, `Iyzico:CallbackUrl`
+- [ ] `PaymentProvider:ActiveProvider` in committed `appsettings.json` is `"Manual"`
+- [ ] `appsettings.Local.json` is NOT committed (`git status` shows it absent or untracked)
+- [ ] `PAYMENT_PRODUCTION_READINESS.md` exists in the repository root
+
+### ActiveProvider = "Manual" — no regression
+
+- [ ] `POST /api/payments/checkout` with valid `appointmentId` → 200, `provider: "Manual"`, `checkoutUrl` set
+- [ ] `PATCH /api/payments/{id}/simulate-paid` (Development) → 200, `status: "Paid"`
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid` Manual Pending → 200
+- [ ] `PATCH /api/admin/payments/{id}/mark-failed` Manual Pending → 200
+- [ ] `PATCH /api/admin/payments/{id}/mark-refunded` Manual Paid → 200
+
+### ActiveProvider = "Iyzico", missing ApiKey/SecretKey
+
+Set `"ActiveProvider": "Iyzico"`, leave `ApiKey` and `SecretKey` empty, restart:
+
+- [ ] `POST /api/payments/checkout` → 400, body: `"Iyzico sandbox credentials are not configured."`
+- [ ] App starts normally — `GET /api/health` still returns 200
+- [ ] Restore `"ActiveProvider": "Manual"` after this test
+
+### ActiveProvider = "Iyzico", localhost CallbackUrl, Production/Staging environment
+
+This test requires running the app with `ASPNETCORE_ENVIRONMENT=Production` (or Staging).
+
+Set credentials and a localhost CallbackUrl, set environment to Production, restart:
+
+- [ ] `POST /api/payments/checkout` → 400, body: `"Iyzico CallbackUrl cannot use localhost in non-Development environments. Set a public HTTPS callback URL."`
+- [ ] Restore environment and config after this test
+
+### ActiveProvider = "Iyzico", HTTP CallbackUrl, Production/Staging environment
+
+Set credentials and an `http://` (non-HTTPS) CallbackUrl, environment to Production, restart:
+
+- [ ] `POST /api/payments/checkout` → 400, body: `"Iyzico CallbackUrl must use HTTPS in non-Development environments."`
+- [ ] Restore environment and config after this test
+
+### ActiveProvider = "Iyzico", localhost CallbackUrl, Development environment (must be allowed)
+
+With `ASPNETCORE_ENVIRONMENT=Development` (the default), credentials set, localhost CallbackUrl:
+
+- [ ] `POST /api/payments/checkout` does NOT fail with the localhost error — proceeds to Iyzico API call
+- [ ] Restore config after this test
+
+### Iyzico admin guard — mark-refunded blocked
+
+With an Iyzico Paid payment (via real callback or `simulate-paid`):
+
+- [ ] `PATCH /api/admin/payments/{id}/mark-refunded` → 400, body: `"Iyzico refund is not implemented yet. Process refunds through the Iyzico merchant dashboard."`
+- [ ] Payment status remains Paid — `GET /api/admin/payments/{id}` confirms no status change
+
+### Iyzico admin guard — mark-paid and mark-failed blocked
+
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid` for an Iyzico Pending payment → 400, body: `"Iyzico payments can only be marked Paid after provider callback verification."`
+- [ ] `PATCH /api/admin/payments/{id}/mark-failed` for an Iyzico Pending payment → 400, body: `"Iyzico payments cannot be manually marked as Failed."`
+
+### Iyzico checkout still works in Development with ngrok callback
+
+Full end-to-end (requires sandbox credentials and ngrok — optional, run when ngrok available):
+
+- [ ] Set credentials + ngrok CallbackUrl, `ActiveProvider=Iyzico`
+- [ ] `POST /api/payments/checkout` → 200, `provider: "Iyzico"`, `checkoutUrl` is a real Iyzico sandbox URL
+- [ ] Iyzico callback verification still marks payment Paid correctly
+- [ ] Restore `"ActiveProvider": "Manual"` after this test
+
+---
+
 ## Payments (v6.4 — Admin payment detail and audit visibility)
 
 ### Backend DTO — no changes required

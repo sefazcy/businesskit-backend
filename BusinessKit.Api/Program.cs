@@ -170,6 +170,11 @@ builder.Services.Configure<PaymentProviderOptions>(
     builder.Configuration.GetSection(PaymentProviderOptions.SectionName));
 builder.Services.Configure<IyzicoOptions>(
     builder.Configuration.GetSection(IyzicoOptions.SectionName));
+// Expose the current environment to IyzicoOptions so the provider can enforce
+// production safety rules (HTTPS callback, no localhost) without an assembly
+// reference to Microsoft.Extensions.Hosting in the Infrastructure layer.
+builder.Services.PostConfigure<IyzicoOptions>(opts =>
+    opts.IsDevelopment = builder.Environment.IsDevelopment());
 // Providers are registered individually so the factory resolves them by type.
 // v6.0: register additional providers here as they are implemented.
 builder.Services.AddScoped<ManualPaymentProvider>();
