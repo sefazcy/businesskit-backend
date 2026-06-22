@@ -60,16 +60,29 @@ public class PaymentsController : ControllerBase
 
     /// <summary>
     /// Receives the Iyzico payment gateway callback after a checkout attempt.
-    /// Returns 400 if the token is missing. Real verification against the Iyzico
-    /// API will be implemented in v6.0 — no payment is marked Paid by this endpoint.
+    /// Accepts application/json (Swagger testing) and application/x-www-form-urlencoded
+    /// (the format Iyzico actually posts). Verifies the payment via the Iyzico API
+    /// and updates payment status. Only provider-side verification can mark a payment Paid.
     /// </summary>
     [HttpPost("iyzico/callback")]
-    public async Task<IActionResult> IyzicoCallback([FromBody] IyzicoCallbackRequest request)
+    public async Task<IActionResult> IyzicoCallback()
     {
-        if (string.IsNullOrWhiteSpace(request?.Token))
+        string? token;
+
+        if (Request.HasFormContentType)
+        {
+            token = Request.Form["token"].FirstOrDefault();
+        }
+        else
+        {
+            var dto = await Request.ReadFromJsonAsync<IyzicoCallbackRequest>();
+            token = dto?.Token;
+        }
+
+        if (string.IsNullOrWhiteSpace(token))
             return BadRequest(new { message = "Token is required." });
 
-        var result = await _paymentService.HandleIyzicoCallbackAsync(request);
+        var result = await _paymentService.HandleIyzicoCallbackAsync(new IyzicoCallbackRequest { Token = token });
         return Ok(result);
     }
 

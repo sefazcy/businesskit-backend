@@ -745,5 +745,114 @@ Set `ApiKey` / `SecretKey` to non-empty garbage values (`"bad"` / `"key"`), set 
 
 - [ ] `GET /swagger` loads and displays all endpoints grouped by tag
 - [ ] Clicking "Authorize" and pasting a valid Bearer token allows protected endpoints to succeed
-- [ ] `Payments (Public)` tag shows: `GET /api/payments/{id}/status`, `POST /api/payments/checkout`, `PATCH /api/payments/{id}/simulate-paid`
+- [ ] `Payments (Public)` tag shows: `GET /api/payments/{id}/status`, `POST /api/payments/checkout`, `PATCH /api/payments/{id}/simulate-paid`, `POST /api/payments/iyzico/callback`
 - [ ] Swagger summary for `simulate-paid` reads "[DEV ONLY — Development environment only]" and states it returns 404 in other environments
+
+---
+
+## Payments (v6.1 — Iyzico Callback Verification and Status Update)
+
+### Build
+
+- [ ] `dotnet build --configuration Release` completes with 0 errors and 0 warnings
+
+### Secrets and config safety
+
+- [ ] `appsettings.json` still has empty `Iyzico:ApiKey`, `Iyzico:SecretKey`, `Iyzico:CallbackUrl`
+- [ ] `PaymentProvider:ActiveProvider` in committed `appsettings.json` is `"Manual"`
+- [ ] `appsettings.Local.json` is NOT committed
+
+### POST /api/payments/iyzico/callback — token validation
+
+- [ ] `POST /api/payments/iyzico/callback` with JSON body `{}` → 400, `"Token is required."`
+- [ ] `POST /api/payments/iyzico/callback` with form body (no token field) → 400, `"Token is required."`
+- [ ] `POST /api/payments/iyzico/callback` with JSON `{ "token": "  " }` (whitespace) → 400, `"Token is required."`
+
+### POST /api/payments/iyzico/callback — unknown token
+
+- [ ] `POST /api/payments/iyzico/callback` with JSON `{ "token": "unknown-token-abc" }` → 200, response:
+  ```json
+  { "isVerified": false, "message": "No payment found for the provided token.", "paymentId": null, "status": null }
+  ```
+- [ ] No payment record is modified
+
+### POST /api/payments/iyzico/callback — form-encoded (Iyzico's real format)
+
+- [ ] `POST /api/payments/iyzico/callback` with `Content-Type: application/x-www-form-urlencoded`, body `token=unknown-token` → 200, `isVerified: false`, `"No payment found..."`
+- [ ] Use curl or Postman to test form encoding (Swagger sends JSON)
+  ```
+  curl -X POST http://localhost:5000/api/payments/iyzico/callback \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "token=unknown-token"
+  ```
+
+### POST /api/payments/iyzico/callback — known pending token, unverified with Iyzico
+
+With `ActiveProvider=Iyzico` and credentials set:
+
+1. Create a booking and call `POST /api/payments/checkout` → get `paymentId` and `checkoutUrl`
+2. Note the Iyzico checkout `token` stored as `providerPaymentId` (`GET /api/admin/payments/{paymentId}`)
+3. Call `POST /api/payments/iyzico/callback` with `{ "token": "<that-token>" }` **without completing payment in browser**
+4. Expected: 200, `isVerified: false` — Iyzico will return PaymentStatus other than SUCCESS since no payment was made
+5. `GET /api/payments/{paymentId}/status` → status still `"Pending"` (not changed)
+
+### POST /api/payments/iyzico/callback — successful sandbox payment (full ngrok flow)
+
+**Prerequisites:** sandbox credentials set in user-secrets, ngrok installed
+
+**Setup steps:**
+
+```
+# Terminal 1 — start backend
+cd BusinessKit.Api
+dotnet run
+
+# Terminal 2 — expose localhost via ngrok (default port 5299 or check launchSettings.json)
+ngrok http 5299
+```
+
+Copy the ngrok HTTPS URL (e.g. `https://abc123.ngrok-free.app`), then:
+
+```
+dotnet user-secrets set "Iyzico:CallbackUrl" "https://abc123.ngrok-free.app/api/payments/iyzico/callback"
+dotnet user-secrets set "PaymentProvider:ActiveProvider" "Iyzico"
+```
+
+Restart the backend (credentials are re-read on startup).
+
+**End-to-end flow:**
+
+1. Create appointment and call `POST /api/payments/checkout` → get `checkoutUrl`
+2. Note `paymentId` from response
+3. Open `checkoutUrl` in browser — Iyzico sandbox payment page loads
+4. Pay with Iyzico sandbox test card:
+   - Card no: `5528790000000008`
+   - Expiry: `12/30`
+   - CVV: `123`
+5. After payment, Iyzico POSTs `token=xxx` (form-encoded) to your ngrok URL
+6. Backend verifies with `CheckoutForm.Retrieve` → if `PaymentStatus == "SUCCESS"` → marks payment `Paid`
+7. Check results:
+   - `GET /api/payments/{paymentId}/status` → `status: "Paid"`, `paidAt` set
+   - `GET /api/admin/payments/{paymentId}` with token → full record shows `Paid`
+   - Admin notifications list shows "Payment received" entry
+   - If `CustomerEmail` was set on the appointment, check logs for email send attempt
+
+**Restore after test:**
+```
+dotnet user-secrets set "PaymentProvider:ActiveProvider" "Manual"
+```
+
+### Safety: callback never marks Paid without provider verification
+
+- [ ] Callback with unknown token → 200, `isVerified: false`, no DB change
+- [ ] Callback with valid token for already-Paid payment → 200, `isVerified: true`, message `"already ... Paid"`, status unchanged
+- [ ] Callback with valid token for already-Failed payment → 200, `isVerified: false`, message contains `"terminal status"`, status unchanged
+- [ ] No endpoint accepts a client-supplied `paymentId` to mark a payment Paid
+
+### No regressions
+
+- [ ] `ActiveProvider=Manual` → `POST /api/payments/checkout` → 200, `provider: "Manual"`, `checkoutUrl` set
+- [ ] `PATCH /api/payments/{id}/simulate-paid` (Development) → 200, `status: "Paid"`
+- [ ] `GET /api/admin/payments/summary` with token → 200, counts and `totalsByCurrency` present
+- [ ] Admin mark-paid, mark-failed, mark-refunded still return 200
+- [ ] `GET /api/payments/{id}/status` still returns only `id`, `status`, `paidAt`

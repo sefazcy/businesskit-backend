@@ -158,16 +158,88 @@ public class IyzicoPaymentProvider : IPaymentProvider
         };
     }
 
-    public Task<PaymentStatusResult> GetPaymentStatusAsync(string providerPaymentId)
+    public async Task<PaymentStatusResult> GetPaymentStatusAsync(string providerPaymentId)
     {
-        // TODO v6.1: call Iyzico retrieve-payment endpoint with providerPaymentId (the checkout token).
-        // Use IyzicoOptions.BaseUrl + ApiKey + SecretKey to sign the request.
-        // On success: map Iyzico payment status to PaymentStatuses constants.
-        return Task.FromResult(new PaymentStatusResult
+        if (string.IsNullOrWhiteSpace(providerPaymentId))
         {
-            ProviderPaymentId = providerPaymentId,
-            Status = PaymentStatuses.Pending,
-            ErrorMessage = "Iyzico payment status verification is not yet implemented. Complete in v6.1.",
-        });
+            return new PaymentStatusResult
+            {
+                ProviderPaymentId = string.Empty,
+                Status = PaymentStatuses.Pending,
+                ErrorMessage = "Token is required for Iyzico payment verification.",
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.SecretKey))
+        {
+            return new PaymentStatusResult
+            {
+                ProviderPaymentId = providerPaymentId,
+                Status = PaymentStatuses.Pending,
+                ErrorMessage = "Iyzico credentials are not configured — cannot verify payment.",
+            };
+        }
+
+        var iyziOptions = new Iyzipay.Options
+        {
+            ApiKey = _options.ApiKey,
+            SecretKey = _options.SecretKey,
+            BaseUrl = _options.BaseUrl,
+        };
+
+        var retrieveRequest = new RetrieveCheckoutFormRequest
+        {
+            Token = providerPaymentId,
+            Locale = Locale.TR.ToString(),
+        };
+
+        CheckoutForm response;
+        try
+        {
+            response = await CheckoutForm.Retrieve(retrieveRequest, iyziOptions);
+        }
+        catch (Exception ex)
+        {
+            return new PaymentStatusResult
+            {
+                ProviderPaymentId = providerPaymentId,
+                Status = PaymentStatuses.Pending,
+                ErrorMessage = $"Iyzico verification request failed: {ex.Message}",
+            };
+        }
+
+        // Outer Status is "success"/"failure" for the API call itself (auth, network, token validity)
+        if (response.Status != Status.SUCCESS.ToString())
+        {
+            return new PaymentStatusResult
+            {
+                ProviderPaymentId = providerPaymentId,
+                Status = PaymentStatuses.Pending,
+                ErrorMessage = $"Iyzico API error during verification: {response.ErrorMessage} (code: {response.ErrorCode})",
+            };
+        }
+
+        // PaymentStatus is the actual payment outcome from the checkout form
+        return response.PaymentStatus switch
+        {
+            "SUCCESS" => new PaymentStatusResult
+            {
+                ProviderPaymentId = providerPaymentId,
+                Status = PaymentStatuses.Paid,
+                PaidAt = DateTime.UtcNow,
+            },
+            "FAILURE" => new PaymentStatusResult
+            {
+                ProviderPaymentId = providerPaymentId,
+                Status = PaymentStatuses.Failed,
+                ErrorMessage = $"Iyzico payment was declined: {response.ErrorMessage}",
+            },
+            _ => new PaymentStatusResult
+            {
+                ProviderPaymentId = providerPaymentId,
+                Status = PaymentStatuses.Pending,
+                ErrorMessage = $"Iyzico payment status is '{response.PaymentStatus}' — awaiting completion.",
+            },
+        };
     }
 }

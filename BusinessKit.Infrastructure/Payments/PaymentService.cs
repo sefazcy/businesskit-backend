@@ -16,6 +16,7 @@ public class PaymentService : IPaymentService
 {
     private readonly AppDbContext _context;
     private readonly IPaymentProviderFactory _providerFactory;
+    private readonly IyzicoPaymentProvider _iyzicoProvider;
     private readonly INotificationService _notificationService;
     private readonly IEmailSender _emailSender;
     private readonly EmailSettings _emailSettings;
@@ -24,6 +25,7 @@ public class PaymentService : IPaymentService
     public PaymentService(
         AppDbContext context,
         IPaymentProviderFactory providerFactory,
+        IyzicoPaymentProvider iyzicoProvider,
         INotificationService notificationService,
         IEmailSender emailSender,
         IOptions<EmailSettings> emailOptions,
@@ -31,6 +33,7 @@ public class PaymentService : IPaymentService
     {
         _context = context;
         _providerFactory = providerFactory;
+        _iyzicoProvider = iyzicoProvider;
         _notificationService = notificationService;
         _emailSender = emailSender;
         _emailSettings = emailOptions.Value;
@@ -354,15 +357,169 @@ public class PaymentService : IPaymentService
         };
     }
 
-    public Task<PaymentCallbackResult> HandleIyzicoCallbackAsync(IyzicoCallbackRequest request)
+    public async Task<PaymentCallbackResult> HandleIyzicoCallbackAsync(IyzicoCallbackRequest request)
     {
-        // Real Iyzico SDK verification will replace this stub in v6.0.
-        // Never mark a payment Paid here without confirmed provider-side verification.
-        return Task.FromResult(new PaymentCallbackResult
+        var token = request.Token?.Trim();
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return new PaymentCallbackResult
+            {
+                IsVerified = false,
+                Message = "Token is required.",
+            };
+        }
+
+        // Look up by provider token — never trust client-supplied paymentId for security decisions
+        var payment = await _context.Payments
+            .Include(p => p.Appointment)
+                .ThenInclude(a => a.BusinessService)
+            .FirstOrDefaultAsync(p => p.ProviderPaymentId == token);
+
+        if (payment == null)
+        {
+            _logger.LogWarning("Iyzico callback received for unknown token (length {Len}).", token.Length);
+            return new PaymentCallbackResult
+            {
+                IsVerified = false,
+                Message = "No payment found for the provided token.",
+            };
+        }
+
+        if (payment.Provider != PaymentProviders.Iyzico)
+        {
+            return new PaymentCallbackResult
+            {
+                IsVerified = false,
+                Message = "Payment was not created with the Iyzico provider.",
+                PaymentId = payment.Id,
+                Status = payment.Status,
+            };
+        }
+
+        // Already in a terminal state — return without re-processing
+        if (payment.Status == PaymentStatuses.Paid)
+        {
+            return new PaymentCallbackResult
+            {
+                IsVerified = true,
+                Message = "Payment was already verified and marked as Paid.",
+                PaymentId = payment.Id,
+                Status = payment.Status,
+            };
+        }
+
+        if (payment.Status is PaymentStatuses.Failed or PaymentStatuses.Refunded or PaymentStatuses.Cancelled)
+        {
+            return new PaymentCallbackResult
+            {
+                IsVerified = false,
+                Message = $"Payment is already in terminal status '{payment.Status}'.",
+                PaymentId = payment.Id,
+                Status = payment.Status,
+            };
+        }
+
+        // Verify with Iyzico — only provider-side confirmation can mark a payment Paid
+        var verification = await _iyzicoProvider.GetPaymentStatusAsync(token);
+
+        if (verification.Status == PaymentStatuses.Paid)
+        {
+            payment.Status = PaymentStatuses.Paid;
+            payment.PaidAt ??= DateTime.UtcNow;
+            payment.FailureReason = null;
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Iyzico callback: payment #{Id} verified and marked Paid.", payment.Id);
+
+            try
+            {
+                await _notificationService.CreateAsync(
+                    "Payment received",
+                    $"Payment of {payment.Currency} {payment.Amount:0.00} for appointment #{payment.AppointmentId} was verified via Iyzico.",
+                    NotificationTypes.PaymentReceived,
+                    "Payment",
+                    payment.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create PaymentReceived notification for payment #{Id}.", payment.Id);
+            }
+
+            if (!string.IsNullOrWhiteSpace(payment.Appointment?.CustomerEmail))
+            {
+                try
+                {
+                    var appointment = payment.Appointment;
+                    var businessName = string.IsNullOrWhiteSpace(_emailSettings.FromName) ? "BusinessKit" : _emailSettings.FromName;
+
+                    var (subject, html) = EmailTemplates.PaymentConfirmedCustomer(
+                        appointment.CustomerFullName,
+                        payment.Amount,
+                        payment.Currency,
+                        appointment.Id,
+                        appointment.RequestedDate,
+                        appointment.RequestedTime,
+                        appointment.BusinessService?.Title,
+                        businessName);
+
+                    await _emailSender.SendAsync(appointment.CustomerEmail, appointment.CustomerFullName, subject, html);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send payment confirmation email for payment #{Id}.", payment.Id);
+                }
+            }
+
+            return new PaymentCallbackResult
+            {
+                IsVerified = true,
+                Message = "Payment verified and marked as Paid.",
+                PaymentId = payment.Id,
+                Status = payment.Status,
+            };
+        }
+
+        if (verification.Status == PaymentStatuses.Failed)
+        {
+            payment.Status = PaymentStatuses.Failed;
+            payment.FailedAt ??= DateTime.UtcNow;
+            payment.FailureReason = verification.ErrorMessage;
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Iyzico callback: payment #{Id} marked Failed. Reason: {Reason}.",
+                payment.Id, verification.ErrorMessage);
+
+            try
+            {
+                await _notificationService.CreateAsync(
+                    "Payment failed",
+                    $"Payment of {payment.Currency} {payment.Amount:0.00} for appointment #{payment.AppointmentId} failed via Iyzico.",
+                    NotificationTypes.PaymentFailed,
+                    "Payment",
+                    payment.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create PaymentFailed notification for payment #{Id}.", payment.Id);
+            }
+
+            return new PaymentCallbackResult
+            {
+                IsVerified = false,
+                Message = "Payment was declined by the provider.",
+                PaymentId = payment.Id,
+                Status = payment.Status,
+            };
+        }
+
+        // Pending / indeterminate — leave status unchanged
+        return new PaymentCallbackResult
         {
             IsVerified = false,
-            Message = "Iyzico callback verification is not implemented yet.",
-        });
+            Message = verification.ErrorMessage ?? "Payment verification did not confirm completion. Status unchanged.",
+            PaymentId = payment.Id,
+            Status = payment.Status,
+        };
     }
 
     private static PaymentDto MapToDto(Payment p) => new()
