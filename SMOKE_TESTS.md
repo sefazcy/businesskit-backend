@@ -929,3 +929,39 @@ admin mark-* endpoints before any status transition is attempted.
 Pending payment (create checkout with `ActiveProvider=Iyzico`) or an existing Iyzico Paid
 payment to verify the guards. The `simulate-paid` endpoint (Development) can fast-path an
 Iyzico Pending payment to Paid for the `mark-refunded` guard test.
+
+---
+
+## Payments (v6.4 — Admin payment detail and audit visibility)
+
+### Backend DTO — no changes required
+
+`GET /api/admin/payments/{id}` (`PaymentDto`) already exposes all fields needed by the detail
+page: `id`, `appointmentId`, `customerId`, `amount`, `currency`, `status`, `provider`,
+`providerPaymentId`, `providerCheckoutUrl`, `paidAt`, `failedAt`, `refundedAt`,
+`failureReason`, `notes`, `createdAt`, `updatedAt`. No backend code was changed in this sprint.
+
+### Build
+
+- [ ] `dotnet build --configuration Release` completes with 0 errors and 0 warnings
+
+### GET /api/admin/payments/{id} — field completeness
+
+- [ ] Response includes `providerPaymentId` (Iyzico token, or null for Manual)
+- [ ] Response includes `providerCheckoutUrl` (checkout URL, or null)
+- [ ] Response includes `failedAt` and `refundedAt` (null unless payment reached that state)
+- [ ] Response includes `createdAt` and `updatedAt`
+- [ ] Response does **not** include API secrets or Iyzico credentials
+
+### Existing endpoints — no regressions
+
+- [ ] `GET /api/admin/payments` → 200, list unaffected
+- [ ] `GET /api/admin/payments/{id}` → 200 for known id, 404 for unknown
+- [ ] `GET /api/admin/payments/summary` → 200, stats unaffected
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid` Manual Pending → 200
+- [ ] `PATCH /api/admin/payments/{id}/mark-paid` Iyzico → 400 with guard message
+- [ ] `PATCH /api/admin/payments/{id}/mark-failed` Manual Pending → 200
+- [ ] `PATCH /api/admin/payments/{id}/mark-failed` Iyzico → 400 with guard message
+- [ ] `PATCH /api/admin/payments/{id}/mark-refunded` Manual Paid → 200
+- [ ] `PATCH /api/admin/payments/{id}/mark-refunded` Iyzico → 400 with guard message
+- [ ] `POST /api/payments/iyzico/callback` with unknown token → 200, `isVerified: false`
