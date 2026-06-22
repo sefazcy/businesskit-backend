@@ -251,7 +251,13 @@ public class PaymentService : IPaymentService
         {
             Id = payment.Id,
             Status = payment.Status,
-            PaidAt = payment.PaidAt
+            Amount = payment.Amount,
+            Currency = payment.Currency,
+            Provider = payment.Provider,
+            CheckoutUrl = payment.ProviderCheckoutUrl,
+            PaidAt = payment.PaidAt,
+            FailedAt = payment.FailedAt,
+            RefundedAt = payment.RefundedAt,
         };
     }
 
