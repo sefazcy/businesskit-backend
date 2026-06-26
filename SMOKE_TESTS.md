@@ -1203,3 +1203,71 @@ page: `id`, `appointmentId`, `customerId`, `amount`, `currency`, `status`, `prov
 - [ ] `GET /api/admin/appointments` with token → 200 (appointments unaffected)
 - [ ] `POST /api/payments/checkout` with valid `appointmentId` → 200 (payments unaffected)
 - [ ] `GET /api/admin/customers` with token → 200 (customers unaffected)
+
+---
+
+## v7.5 — Inventory Final Polish and Readiness
+
+> Final quality, safety, and readiness pass for the complete Product / Inventory module.
+> Run after v7.5 tag against a live backend at `http://localhost:5299`.
+
+### Build check
+
+- [ ] `dotnet build --configuration Release` → Build succeeded, 0 Warning(s), 0 Error(s)
+
+### Product management smoke checks
+
+- [ ] `GET /api/admin/products` with valid token → 200, returns product array
+- [ ] `POST /api/admin/products` with valid body → 201, returns created product with `id`, `isLowStock`, `createdAt`, `updatedAt`
+- [ ] `PUT /api/admin/products/{id}` with valid body → 200, returns updated product
+- [ ] `PATCH /api/admin/products/{id}/toggle-active` → 200, `isActive` flips
+- [ ] `GET /api/admin/products/categories` → 200, returns sorted string array
+- [ ] `GET /api/admin/products/{id}` for unknown id → 404 with `{ message: "..." }`
+- [ ] `POST /api/admin/products` with duplicate SKU → 409 with `{ message: "A product with SKU '...' already exists." }`
+- [ ] `POST /api/admin/products` without `name` → 400 (model validation)
+- [ ] `POST /api/admin/products` without token → 401
+- [ ] `POST /api/admin/products` with non-admin token → 403
+
+### Stock movement smoke checks
+
+- [ ] `POST /api/admin/stock-movements` (In, qty 10) → **201** (was 200 before v7.5), returns movement with `previousStock`, `newStock`
+- [ ] `POST /api/admin/stock-movements` (Out, qty within stock) → 201, `newStock = previousStock - qty`
+- [ ] `POST /api/admin/stock-movements` (Out, qty exceeds stock) → 400 with `"Insufficient stock"` message
+- [ ] `POST /api/admin/stock-movements` (Adjustment, qty 0) → 201, `newStock = 0`
+- [ ] `POST /api/admin/stock-movements` (Adjustment, qty 50) → 201, `newStock = 50`
+- [ ] `POST /api/admin/stock-movements` with invalid type `"Remove"` → 400 with valid type list in message
+- [ ] `POST /api/admin/stock-movements` with In/Out and `quantity: 0` → 400 ("must be greater than 0")
+- [ ] `POST /api/admin/stock-movements` with negative `quantity` → 400 (model validation)
+- [ ] `POST /api/admin/stock-movements` for unknown productId → 404
+- [ ] `GET /api/admin/products/{id}` after stock movement → `currentStock` and `updatedAt` reflect the change
+- [ ] `GET /api/admin/products/{id}/stock-movements` → 200, array, latest first
+- [ ] `GET /api/admin/products/{id}/stock-summary` → 200, contains `totalIn`, `totalOut`, `adjustmentCount`, `lastMovementAt`
+- [ ] `GET /api/admin/stock-movements?take=5` → 200, at most 5 results
+- [ ] `GET /api/admin/stock-movements?productId={id}` → filtered to that product only
+- [ ] `GET /api/admin/stock-movements` without token → 401
+
+### Safety invariants
+
+- [ ] Product `currentStock` cannot go negative via Out movement (400 returned, stock unchanged)
+- [ ] Adjustment to 0 is accepted and sets `currentStock` to exactly 0
+- [ ] Stock movement records are never deleted when their product still exists (FK Restrict)
+- [ ] `product.updatedAt` changes after every stock movement that modifies stock
+
+### No regressions
+
+- [ ] `GET /api/admin/appointments` with token → 200
+- [ ] `GET /api/admin/customers` with token → 200
+- [ ] `POST /api/payments/checkout` flow unaffected
+- [ ] `GET /api/admin/staff` with token → 200
+- [ ] `GET /api/admin/blog/posts` with token → 200
+
+### Known limitations (not bugs)
+
+- No inventory export / reporting endpoint yet
+- No automatic stock deduction from appointments or payments yet
+- Product images not supported yet
+- No supplier / vendor module yet
+- No barcode / SKU scanning yet
+- No multi-warehouse / location support yet
+- `PUT /api/admin/products/{id}` allows direct `currentStock` override (no movement record created); intended for initial setup and bulk corrections
+- `GET /api/admin/products/{id}/stock-movements` is capped at 500 rows server-side; products with more history should use the global `/api/admin/stock-movements?productId={id}` endpoint with explicit `take` and date filters

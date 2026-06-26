@@ -51,6 +51,7 @@ public class StockMovementService : IStockMovementService
             .Where(sm => sm.ProductId == productId)
             .OrderByDescending(sm => sm.CreatedAt)
             .ThenByDescending(sm => sm.Id)
+            .Take(500)
             .ToListAsync();
 
         return movements.Select(MapToDto).ToList();
@@ -123,9 +124,23 @@ public class StockMovementService : IStockMovementService
         if (product == null)
             return null;
 
-        var movements = await _context.StockMovements
-            .Where(sm => sm.ProductId == productId)
-            .ToListAsync();
+        var baseQuery = _context.StockMovements.Where(sm => sm.ProductId == productId);
+
+        var totalIn = await baseQuery
+            .Where(sm => sm.Type == StockMovementTypes.In)
+            .SumAsync(sm => (decimal?)sm.Quantity) ?? 0m;
+
+        var totalOut = await baseQuery
+            .Where(sm => sm.Type == StockMovementTypes.Out)
+            .SumAsync(sm => (decimal?)sm.Quantity) ?? 0m;
+
+        var adjustmentCount = await baseQuery
+            .CountAsync(sm => sm.Type == StockMovementTypes.Adjustment);
+
+        var lastMovementAt = await baseQuery
+            .OrderByDescending(sm => sm.CreatedAt)
+            .Select(sm => (DateTime?)sm.CreatedAt)
+            .FirstOrDefaultAsync();
 
         return new StockSummaryDto
         {
@@ -134,12 +149,10 @@ public class StockMovementService : IStockMovementService
             CurrentStock    = product.CurrentStock,
             MinStock        = product.MinStock,
             IsLowStock      = product.MinStock > 0 && product.CurrentStock <= product.MinStock,
-            TotalIn         = movements.Where(sm => sm.Type == StockMovementTypes.In).Sum(sm => sm.Quantity),
-            TotalOut        = movements.Where(sm => sm.Type == StockMovementTypes.Out).Sum(sm => sm.Quantity),
-            AdjustmentCount = movements.Count(sm => sm.Type == StockMovementTypes.Adjustment),
-            LastMovementAt  = movements.Count > 0
-                ? movements.Max(sm => sm.CreatedAt)
-                : null,
+            TotalIn         = totalIn,
+            TotalOut        = totalOut,
+            AdjustmentCount = adjustmentCount,
+            LastMovementAt  = lastMovementAt,
         };
     }
 
