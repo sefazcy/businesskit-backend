@@ -34,6 +34,8 @@ using BusinessKit.Application.Payments;
 using BusinessKit.Infrastructure.Payments;
 using BusinessKit.Application.Products;
 using BusinessKit.Infrastructure.Products;
+using BusinessKit.Application.ApartmentManagement;
+using BusinessKit.Infrastructure.ApartmentManagement;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -172,6 +174,10 @@ builder.Services.AddScoped<IProductService, ProductService>();
 
 // Stock movement service
 builder.Services.AddScoped<IStockMovementService, StockMovementService>();
+
+// Apartment management services
+builder.Services.AddScoped<IApartmentUnitService, ApartmentUnitService>();
+builder.Services.AddScoped<IResidentService, ResidentService>();
 
 // Payment services
 builder.Services.Configure<PaymentProviderOptions>(

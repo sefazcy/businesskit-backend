@@ -1271,3 +1271,112 @@ page: `id`, `appointmentId`, `customerId`, `amount`, `currency`, `status`, `prov
 - No multi-warehouse / location support yet
 - `PUT /api/admin/products/{id}` allows direct `currentStock` override (no movement record created); intended for initial setup and bulk corrections
 - `GET /api/admin/products/{id}/stock-movements` is capped at 500 rows server-side; products with more history should use the global `/api/admin/stock-movements?productId={id}` endpoint with explicit `take` and date filters
+
+---
+
+## v8.0 — Apartment Management Foundation
+
+> Backend-only sprint: adds ApartmentUnit and Resident entities with full CRUD.
+> Run after v8.0 tag against a live backend at `http://localhost:5299`.
+> No admin panel UI yet; test via Swagger at `/swagger`.
+
+### Build check
+
+- [ ] `dotnet build --configuration Release` → Build succeeded, 0 Warning(s), 0 Error(s)
+- [ ] Migration `20260627001328_AddApartmentManagementFoundation` is present in `BusinessKit.Infrastructure/Data/Migrations/`
+
+### Auth guard
+
+- [ ] `GET /api/admin/apartment-units` without token → 401
+- [ ] `POST /api/admin/apartment-units` without token → 401
+- [ ] `GET /api/admin/residents` without token → 401
+- [ ] `POST /api/admin/residents` without token → 401
+
+### Apartment unit — create
+
+- [ ] `POST /api/admin/apartment-units` with valid body `{ "doorNumber": "1", "unitType": "Apartment" }` → 201, returns unit with `id`, `residentCount: 0`, `primaryResidentName: null`
+- [ ] Response includes `blockName`, `floorNumber`, `grossArea`, `netArea`, `isOccupied`, `isActive`, `createdAt`, `updatedAt`
+- [ ] `POST` without `doorNumber` → 400 (model validation)
+- [ ] `POST` without `unitType` → 400 (model validation)
+- [ ] `POST` with invalid `unitType: "Studio"` → 400 with message containing "not a valid unit type"
+- [ ] `POST` with `grossArea: -1` → 400 (model validation: "GrossArea cannot be negative")
+- [ ] `POST` with duplicate `blockName + doorNumber` → 409 with `{ message: "...already exists..." }`
+- [ ] `POST` with `blockName: null` and same `doorNumber` twice → 409 (service-level null-block uniqueness check)
+
+### Apartment unit — read and filter
+
+- [ ] `GET /api/admin/apartment-units` → 200, returns array
+- [ ] `GET /api/admin/apartment-units?isActive=true` → only active units
+- [ ] `GET /api/admin/apartment-units?isOccupied=false` → only unoccupied units
+- [ ] `GET /api/admin/apartment-units?blockName=A` → units whose blockName contains "A"
+- [ ] `GET /api/admin/apartment-units?unitType=Apartment` → only Apartment-type units
+- [ ] `GET /api/admin/apartment-units?search=12` → units matching "12" in doorNumber, blockName, unitType, or notes
+- [ ] `GET /api/admin/apartment-units?take=2` → at most 2 results
+- [ ] `GET /api/admin/apartment-units/{id}` → 200, includes `residentCount` and `primaryResidentName`
+- [ ] `GET /api/admin/apartment-units/99999` → 404 with `{ message: "...was not found..." }`
+
+### Apartment unit — update and toggle
+
+- [ ] `PUT /api/admin/apartment-units/{id}` with changed `floorNumber` → 200, updated
+- [ ] `PUT` with duplicate `blockName + doorNumber` on a different unit → 409
+- [ ] `PUT` on missing id → 404
+- [ ] `PATCH /api/admin/apartment-units/{id}/toggle-active` → 200, `isActive` flips
+- [ ] `PATCH` on missing id → 404
+
+### Resident — create
+
+- [ ] `POST /api/admin/residents` with `{ "apartmentUnitId": {id}, "fullName": "Ali Veli", "role": "Owner" }` → 201
+- [ ] Response includes `apartmentDoorNumber`, `apartmentBlockName`, `isPrimary`, `isActive`, `moveInDate`, `moveOutDate`, `createdAt`, `updatedAt`
+- [ ] `POST` with invalid `role: "Guest"` → 400 with message containing "not a valid resident role"
+- [ ] `POST` with non-existent `apartmentUnitId: 99999` → 404 with "was not found"
+- [ ] `POST` with `moveOutDate` earlier than `moveInDate` → 400 ("MoveOutDate cannot be earlier than MoveInDate")
+- [ ] `POST` with invalid `email: "notanemail"` → 400 (model validation)
+- [ ] `POST` without `fullName` → 400 (model validation)
+
+### Resident — read and filter
+
+- [ ] `GET /api/admin/residents` → 200, returns array with `apartmentDoorNumber` on each item
+- [ ] `GET /api/admin/residents?apartmentUnitId={id}` → only residents of that unit
+- [ ] `GET /api/admin/residents?role=Owner` → only owners
+- [ ] `GET /api/admin/residents?isActive=true` → only active residents
+- [ ] `GET /api/admin/residents?search=Ali` → residents matching "Ali" in fullName, email, or phone
+- [ ] `GET /api/admin/residents/{id}` → 200
+- [ ] `GET /api/admin/residents/99999` → 404
+- [ ] `GET /api/admin/apartment-units/{id}/residents` → 200, only residents of that unit, active-first then by name
+
+### Resident — update and toggle
+
+- [ ] `PUT /api/admin/residents/{id}` with changed `phone` → 200, updated
+- [ ] `PUT` with invalid role → 400
+- [ ] `PUT` on missing id → 404
+- [ ] `PATCH /api/admin/residents/{id}/toggle-active` → 200, `isActive` flips
+- [ ] `PATCH` on missing id → 404
+
+### ResidentCount and PrimaryResidentName in unit DTO
+
+- [ ] After adding a resident with `isPrimary: true` to a unit → `GET /api/admin/apartment-units/{id}` shows `residentCount: 1`, `primaryResidentName: "Ali Veli"`
+- [ ] After deactivating that resident → `residentCount: 0`, `primaryResidentName: null`
+
+### Safety invariants
+
+- [ ] Cannot delete an ApartmentUnit that has Residents (FK Restrict — would require raw SQL delete, which no endpoint exposes)
+- [ ] `isOccupied` is manually managed via PUT/POST; no automatic flip on resident changes (v8.0 behavior)
+
+### No regressions
+
+- [ ] `GET /api/admin/products` with token → 200 (inventory unaffected)
+- [ ] `GET /api/admin/appointments` with token → 200
+- [ ] `POST /api/payments/checkout` flow unaffected
+- [ ] `GET /api/admin/customers` with token → 200
+- [ ] `GET /api/admin/staff` with token → 200
+
+### Known limitations (not bugs — future sprints)
+
+- Dues / aidat tracking not implemented yet
+- Expense tracking not implemented yet
+- Announcements and complaints not implemented yet
+- Document upload not implemented yet
+- Public resident portal not implemented yet
+- WhatsApp / SMS / email notifications not implemented yet
+- `isOccupied` is manually managed; no automatic flip based on resident status
+- No admin panel UI yet (v8.1 will add the admin panel for this module)

@@ -24,6 +24,8 @@ public class AppDbContext : DbContext
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Product> Products { get; set; } = null!;
     public DbSet<StockMovement> StockMovements { get; set; } = null!;
+    public DbSet<ApartmentUnit> ApartmentUnits { get; set; } = null!;
+    public DbSet<Resident> Residents { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
