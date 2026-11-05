@@ -1,3 +1,5 @@
+using BusinessKit.Application.Common;
+using BusinessKit.Domain;
 using BusinessKit.Application.Email;
 using BusinessKit.Application.Notifications;
 using BusinessKit.Application.Payments;
@@ -21,6 +23,7 @@ public class PaymentService : IPaymentService
     private readonly IEmailSender _emailSender;
     private readonly EmailSettings _emailSettings;
     private readonly ILogger<PaymentService> _logger;
+    private readonly FrontendUrlOptions _frontendUrls;
 
     public PaymentService(
         AppDbContext context,
@@ -29,8 +32,10 @@ public class PaymentService : IPaymentService
         INotificationService notificationService,
         IEmailSender emailSender,
         IOptions<EmailSettings> emailOptions,
-        ILogger<PaymentService> logger)
+        ILogger<PaymentService> logger,
+        IOptions<FrontendUrlOptions> frontendUrlOptions)
     {
+        _frontendUrls = frontendUrlOptions.Value;
         _context = context;
         _providerFactory = providerFactory;
         _iyzicoProvider = iyzicoProvider;
@@ -86,6 +91,14 @@ public class PaymentService : IPaymentService
         if (appointment == null)
             return null;
 
+        if (appointment.Status == AppointmentStatuses.Cancelled)
+            throw new InvalidOperationException(
+                "Cannot create a payment for a cancelled appointment.");
+
+        if (await HasPendingPaymentAsync(appointmentId))
+            throw new InvalidOperationException(
+                "This appointment already has a Pending payment. Resolve it (mark paid or failed) before creating a new one.");
+
         var payment = new Payment
         {
             AppointmentId = appointmentId,
@@ -98,7 +111,17 @@ public class PaymentService : IPaymentService
         };
 
         _context.Payments.Add(payment);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            // Another request created a Pending payment for this appointment concurrently.
+            _context.Entry(payment).State = EntityState.Detached;
+            throw new InvalidOperationException(
+                "This appointment already has a Pending payment. Resolve it (mark paid or failed) before creating a new one.");
+        }
 
         return MapToDto(payment);
     }
@@ -241,9 +264,23 @@ public class PaymentService : IPaymentService
         return MapToDto(payment);
     }
 
-    public async Task<PublicPaymentStatusDto?> GetPublicStatusAsync(int id)
+    public async Task<int?> FindIdByPublicTokenAsync(string paymentToken)
     {
-        var payment = await _context.Payments.FindAsync(id);
+        if (!PublicTokens.IsWellFormed(paymentToken))
+            return null;
+
+        return await _context.Payments
+            .Where(p => p.PublicToken == paymentToken)
+            .Select(p => (int?)p.Id)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<PublicPaymentStatusDto?> GetPublicStatusAsync(string paymentToken)
+    {
+        if (!PublicTokens.IsWellFormed(paymentToken))
+            return null;
+
+        var payment = await _context.Payments.FirstOrDefaultAsync(p => p.PublicToken == paymentToken);
         if (payment == null)
             return null;
 
@@ -261,14 +298,23 @@ public class PaymentService : IPaymentService
         };
     }
 
-    public async Task<PaymentCheckoutResponseDto?> CreatePublicCheckoutAsync(int appointmentId)
+    public async Task<PaymentCheckoutResponseDto?> CreatePublicCheckoutAsync(string appointmentToken)
     {
+        if (!PublicTokens.IsWellFormed(appointmentToken))
+            return null;
+
         var appointment = await _context.Appointments
             .Include(a => a.BusinessService)
-            .FirstOrDefaultAsync(a => a.Id == appointmentId);
+            .FirstOrDefaultAsync(a => a.PublicToken == appointmentToken);
 
         if (appointment == null)
             return null;
+
+        var appointmentId = appointment.Id;
+
+        if (appointment.Status == AppointmentStatuses.Cancelled)
+            throw new InvalidOperationException(
+                "This appointment has been cancelled. Payment cannot be started.");
 
         if (appointment.BusinessServiceId == null || appointment.BusinessService == null)
             throw new InvalidOperationException(
@@ -312,7 +358,21 @@ public class PaymentService : IPaymentService
         };
 
         _context.Payments.Add(payment);
-        await _context.SaveChangesAsync(); // persists so payment.Id is assigned
+        try
+        {
+            await _context.SaveChangesAsync(); // persists so payment.Id is assigned
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            // A concurrent request created the Pending payment first (unique index on
+            // AppointmentId where Status = 'Pending'). Return that one — idempotent.
+            _context.Entry(payment).State = EntityState.Detached;
+            var concurrentPending = await _context.Payments
+                .FirstOrDefaultAsync(p => p.AppointmentId == appointmentId && p.Status == PaymentStatuses.Pending);
+            if (concurrentPending == null)
+                throw;
+            return MapToCheckoutDto(concurrentPending, "Pending payment already exists for this appointment.");
+        }
 
         var checkoutRequest = new CreateCheckoutRequest
         {
@@ -322,9 +382,8 @@ public class PaymentService : IPaymentService
             CustomerName = appointment.CustomerFullName,
             CustomerEmail = appointment.CustomerEmail,
             Description = appointment.BusinessService?.Title ?? $"Appointment #{appointmentId}",
-            // v5.7: read return/cancel URLs from settings or per-provider config
-            ReturnUrl = $"http://localhost:5174/payment-status/{payment.Id}",
-            CancelUrl = $"http://localhost:5174/payment-status/{payment.Id}",
+            ReturnUrl = _frontendUrls.BuildPaymentStatusUrl(payment.PublicToken),
+            CancelUrl = _frontendUrls.BuildPaymentStatusUrl(payment.PublicToken),
         };
 
         var providerResult = await provider.CreateCheckoutAsync(checkoutRequest);
@@ -336,8 +395,15 @@ public class PaymentService : IPaymentService
             payment.FailedAt = DateTime.UtcNow;
             payment.FailureReason = providerResult.ErrorMessage;
             await _context.SaveChangesAsync();
+
+            // Provider/config details stay in logs and FailureReason (admin-visible);
+            // the public caller only gets a generic message.
+            _logger.LogError(
+                "Checkout initialization failed for payment #{PaymentId} (appointment #{AppointmentId}, provider {Provider}): {Error}",
+                payment.Id, appointmentId, provider.ProviderName, providerResult.ErrorMessage);
+
             throw new InvalidOperationException(
-                providerResult.ErrorMessage ?? "Payment provider failed to create checkout session.");
+                "Online payment could not be started right now. Please try again later or contact us.");
         }
 
         payment.ProviderPaymentId = providerResult.ProviderPaymentId;
@@ -422,6 +488,7 @@ public class PaymentService : IPaymentService
                 IsVerified = false,
                 Message = "Payment was not created with the Iyzico provider.",
                 PaymentId = payment.Id,
+                PaymentToken = payment.PublicToken,
                 Status = payment.Status,
             };
         }
@@ -434,6 +501,7 @@ public class PaymentService : IPaymentService
                 IsVerified = true,
                 Message = "Payment was already verified and marked as Paid.",
                 PaymentId = payment.Id,
+                PaymentToken = payment.PublicToken,
                 Status = payment.Status,
             };
         }
@@ -445,6 +513,7 @@ public class PaymentService : IPaymentService
                 IsVerified = false,
                 Message = $"Payment is already in terminal status '{payment.Status}'.",
                 PaymentId = payment.Id,
+                PaymentToken = payment.PublicToken,
                 Status = payment.Status,
             };
         }
@@ -454,6 +523,27 @@ public class PaymentService : IPaymentService
 
         if (verification.Status == PaymentStatuses.Paid)
         {
+            // The provider says "paid" — make sure it is *this* payment, for the right amount.
+            var mismatch = GetVerificationMismatch(payment, verification);
+            if (mismatch != null)
+            {
+                payment.FailureReason = $"Verification mismatch: {mismatch}";
+                await _context.SaveChangesAsync();
+
+                _logger.LogError(
+                    "Iyzico callback: payment #{Id} NOT marked Paid — verification mismatch: {Mismatch}. Manual review required.",
+                    payment.Id, mismatch);
+
+                return new PaymentCallbackResult
+                {
+                    IsVerified = false,
+                    Message = "Payment could not be verified. It has been flagged for manual review.",
+                    PaymentId = payment.Id,
+                    PaymentToken = payment.PublicToken,
+                    Status = payment.Status,
+                };
+            }
+
             payment.Status = PaymentStatuses.Paid;
             payment.PaidAt ??= DateTime.UtcNow;
             payment.FailureReason = null;
@@ -505,6 +595,7 @@ public class PaymentService : IPaymentService
                 IsVerified = true,
                 Message = "Payment verified and marked as Paid.",
                 PaymentId = payment.Id,
+                PaymentToken = payment.PublicToken,
                 Status = payment.Status,
             };
         }
@@ -538,6 +629,7 @@ public class PaymentService : IPaymentService
                 IsVerified = false,
                 Message = "Payment was declined by the provider.",
                 PaymentId = payment.Id,
+                PaymentToken = payment.PublicToken,
                 Status = payment.Status,
             };
         }
@@ -548,9 +640,39 @@ public class PaymentService : IPaymentService
             IsVerified = false,
             Message = verification.ErrorMessage ?? "Payment verification did not confirm completion. Status unchanged.",
             PaymentId = payment.Id,
+            PaymentToken = payment.PublicToken,
             Status = payment.Status,
         };
     }
+
+    private Task<bool> HasPendingPaymentAsync(int appointmentId) =>
+        _context.Payments.AnyAsync(p => p.AppointmentId == appointmentId && p.Status == PaymentStatuses.Pending);
+
+    /// <summary>
+    /// Compares what the provider verified against the local payment record.
+    /// Returns a description of the first mismatch, or null when everything matches.
+    /// </summary>
+    private static string? GetVerificationMismatch(Payment payment, PaymentStatusResult verification)
+    {
+        var expectedBasketId = IyzicoPaymentProvider.BuildBasketId(payment.Id);
+        if (!string.Equals(verification.MerchantReference, expectedBasketId, StringComparison.Ordinal))
+            return $"basketId '{verification.MerchantReference}' does not match expected '{expectedBasketId}'";
+
+        if (verification.Amount == null)
+            return "provider did not report a parseable amount";
+
+        if (decimal.Round(verification.Amount.Value, 2) != decimal.Round(payment.Amount, 2))
+            return $"amount {verification.Amount.Value:0.00} does not match expected {payment.Amount:0.00}";
+
+        if (!string.Equals(verification.Currency?.Trim(), payment.Currency, StringComparison.OrdinalIgnoreCase))
+            return $"currency '{verification.Currency}' does not match expected '{payment.Currency}'";
+
+        return null;
+    }
+
+    /// <summary>SQLite constraint violation (error code 19), e.g. the unique Pending-payment index.</summary>
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
+        ex.InnerException is Microsoft.Data.Sqlite.SqliteException { SqliteErrorCode: 19 };
 
     private static PaymentDto MapToDto(Payment p) => new()
     {
@@ -587,6 +709,7 @@ public class PaymentService : IPaymentService
 
     private static PaymentCheckoutResponseDto MapToCheckoutDto(Payment p, string message) => new()
     {
+        PaymentToken = p.PublicToken,
         PaymentId = p.Id,
         AppointmentId = p.AppointmentId,
         Amount = p.Amount,

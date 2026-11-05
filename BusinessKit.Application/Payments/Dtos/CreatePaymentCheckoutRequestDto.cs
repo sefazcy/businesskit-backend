@@ -4,7 +4,8 @@ namespace BusinessKit.Application.Payments.Dtos;
 
 public class CreatePaymentCheckoutRequestDto
 {
-    [Required]
-    [Range(1, int.MaxValue, ErrorMessage = "A valid appointmentId is required.")]
-    public int AppointmentId { get; set; }
+    /// <summary>The appointment's public token, returned when the appointment was created.</summary>
+    [Required(ErrorMessage = "A valid appointmentToken is required.")]
+    [MaxLength(64)]
+    public string AppointmentToken { get; set; } = string.Empty;
 }

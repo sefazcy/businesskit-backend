@@ -1,6 +1,7 @@
 using System.Text;
 using BusinessKit.Application.Auth;
 using BusinessKit.Application.Blog;
+using BusinessKit.Application.Common;
 using BusinessKit.Application.BusinessSettings;
 using BusinessKit.Application.ContactMessages;
 using BusinessKit.Application.Email;
@@ -46,10 +47,20 @@ var builder = WebApplication.CreateBuilder(args);
 // Optional local overrides for secrets (gitignored — use for sandbox API keys in dev)
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
+// Frontend URLs (CORS origins + browser-facing links such as payment status pages)
+var frontendUrlsSection = builder.Configuration.GetSection(FrontendUrlOptions.SectionName);
+builder.Services.Configure<FrontendUrlOptions>(frontendUrlsSection);
+var frontendUrls = frontendUrlsSection.Get<FrontendUrlOptions>() ?? new FrontendUrlOptions();
+var corsOrigins = new[] { frontendUrls.PublicSiteUrl, frontendUrls.AdminPanelUrl }
+    .Where(u => !string.IsNullOrWhiteSpace(u))
+    .Select(u => u.TrimEnd('/'))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("LocalDevOrigins", policy =>
-        policy.WithOrigins("http://localhost:5173", "http://localhost:5174")
+    options.AddPolicy("FrontendOrigins", policy =>
+        policy.WithOrigins(corsOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
@@ -227,7 +238,7 @@ else
     });
 }
 
-app.UseCors("LocalDevOrigins");
+app.UseCors("FrontendOrigins");
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAuthentication(); // Must come before UseAuthorization

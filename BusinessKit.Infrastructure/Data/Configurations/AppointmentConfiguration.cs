@@ -62,6 +62,12 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
             .OnDelete(DeleteBehavior.SetNull)
             .IsRequired(false);
 
+        builder.Property(a => a.PublicToken)
+            .IsRequired()
+            .HasMaxLength(64);
+
+        builder.HasIndex(a => a.PublicToken).IsUnique();
+
         builder.HasIndex(a => a.Status);
         builder.HasIndex(a => a.RequestedDate);
         builder.HasIndex(a => a.CustomerId);

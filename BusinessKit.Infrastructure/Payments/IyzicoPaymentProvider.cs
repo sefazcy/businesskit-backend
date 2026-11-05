@@ -19,6 +19,13 @@ public class IyzicoPaymentProvider : IPaymentProvider
 
     public string ProviderName => PaymentProviders.Iyzico;
 
+    /// <summary>
+    /// Basket id sent to Iyzico at checkout and echoed back on retrieval.
+    /// Used to confirm a verified payment belongs to the expected local payment.
+    /// (Format kept as "appointment-{paymentId}" for compatibility with existing sessions.)
+    /// </summary>
+    public static string BuildBasketId(int paymentId) => $"appointment-{paymentId}";
+
     public async Task<PaymentProviderResult> CreateCheckoutAsync(CreateCheckoutRequest request)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.SecretKey))
@@ -137,7 +144,7 @@ public class IyzicoPaymentProvider : IPaymentProvider
             Price               = amountStr,
             PaidPrice           = amountStr,
             Currency            = request.Currency,
-            BasketId            = $"appointment-{request.PaymentId}",
+            BasketId            = BuildBasketId(request.PaymentId),
             PaymentGroup        = PaymentGroup.PRODUCT.ToString(),
             CallbackUrl         = _options.CallbackUrl,
             EnabledInstallments = new List<int> { 1 },
@@ -242,6 +249,20 @@ public class IyzicoPaymentProvider : IPaymentProvider
             };
         }
 
+        // Iyzico fraud check: 1 = approved, 0 = under review, -1 = rejected.
+        // A SUCCESS payment that is not fraud-approved must not be treated as Paid yet.
+        if (response.PaymentStatus == "SUCCESS" && response.FraudStatus.HasValue && response.FraudStatus.Value != 1)
+        {
+            return new PaymentStatusResult
+            {
+                ProviderPaymentId = providerPaymentId,
+                Status = response.FraudStatus.Value == -1 ? PaymentStatuses.Failed : PaymentStatuses.Pending,
+                ErrorMessage = response.FraudStatus.Value == -1
+                    ? "Iyzico fraud check rejected the payment."
+                    : "Iyzico fraud check is still under review — awaiting approval.",
+            };
+        }
+
         // PaymentStatus is the actual payment outcome from the checkout form
         return response.PaymentStatus switch
         {
@@ -250,6 +271,11 @@ public class IyzicoPaymentProvider : IPaymentProvider
                 ProviderPaymentId = providerPaymentId,
                 Status = PaymentStatuses.Paid,
                 PaidAt = DateTime.UtcNow,
+                Amount = decimal.TryParse(response.Price, NumberStyles.Number, CultureInfo.InvariantCulture, out var price)
+                    ? price
+                    : null,
+                Currency = response.Currency,
+                MerchantReference = response.BasketId,
             },
             "FAILURE" => new PaymentStatusResult
             {

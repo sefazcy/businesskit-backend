@@ -1,6 +1,8 @@
+using BusinessKit.Application.Common;
 using BusinessKit.Application.Payments;
 using BusinessKit.Application.Payments.Dtos;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace BusinessKit.Api.Controllers;
 
@@ -11,32 +13,38 @@ public class PaymentsController : ControllerBase
 {
     private readonly IPaymentService _paymentService;
     private readonly IWebHostEnvironment _env;
+    private readonly FrontendUrlOptions _frontendUrls;
 
-    public PaymentsController(IPaymentService paymentService, IWebHostEnvironment env)
+    public PaymentsController(
+        IPaymentService paymentService,
+        IWebHostEnvironment env,
+        IOptions<FrontendUrlOptions> frontendUrlOptions)
     {
         _paymentService = paymentService;
         _env = env;
+        _frontendUrls = frontendUrlOptions.Value;
     }
 
     /// <summary>
-    /// Returns the minimal public status of a payment (id, status, paidAt).
+    /// Returns the minimal public status of a payment, looked up by its public token
+    /// (never by numeric id, so payments cannot be enumerated).
     /// No sensitive or internal fields are exposed.
     /// </summary>
-    [HttpGet("{id:int}/status")]
-    public async Task<IActionResult> GetStatus(int id)
+    [HttpGet("{paymentToken}/status")]
+    public async Task<IActionResult> GetStatus(string paymentToken)
     {
-        var status = await _paymentService.GetPublicStatusAsync(id);
+        var status = await _paymentService.GetPublicStatusAsync(paymentToken);
         if (status == null)
-            return NotFound(new { message = $"Payment with id {id} was not found." });
+            return NotFound(new { message = "Payment was not found." });
 
         return Ok(status);
     }
 
     /// <summary>
-    /// Creates or returns a pending checkout session for an appointment.
-    /// Calling this multiple times for the same appointment while a Pending payment
-    /// exists returns the existing payment (idempotent). No external provider is
-    /// called in this sprint — the checkoutUrl is a placeholder.
+    /// Creates or returns a pending checkout session for an appointment, identified by
+    /// the appointment's public token (returned when the appointment was created).
+    /// Calling this multiple times while a Pending payment exists returns the
+    /// existing payment (idempotent).
     /// </summary>
     [HttpPost("checkout")]
     public async Task<IActionResult> CreateCheckout([FromBody] CreatePaymentCheckoutRequestDto dto)
@@ -46,9 +54,9 @@ public class PaymentsController : ControllerBase
 
         try
         {
-            var result = await _paymentService.CreatePublicCheckoutAsync(dto.AppointmentId);
+            var result = await _paymentService.CreatePublicCheckoutAsync(dto.AppointmentToken);
             if (result == null)
-                return NotFound(new { message = $"Appointment with id {dto.AppointmentId} was not found." });
+                return NotFound(new { message = "Appointment was not found." });
 
             return Ok(result);
         }
@@ -60,18 +68,24 @@ public class PaymentsController : ControllerBase
 
     /// <summary>
     /// Receives the Iyzico payment gateway callback after a checkout attempt.
-    /// Accepts application/json (Swagger testing) and application/x-www-form-urlencoded
-    /// (the format Iyzico actually posts). Verifies the payment via the Iyzico API
-    /// and updates payment status. Only provider-side verification can mark a payment Paid.
+    /// Accepts application/x-www-form-urlencoded (the format Iyzico actually posts,
+    /// via the customer's browser) and application/json (Swagger / manual testing).
+    /// Verifies the payment via the Iyzico API and updates payment status.
+    /// Only provider-side verification can mark a payment Paid.
+    ///
+    /// Form posts come from the customer's browser, so they are answered with a
+    /// 303 redirect to the public payment status page. JSON requests still get
+    /// the JSON result for testing.
     /// </summary>
     [HttpPost("iyzico/callback")]
     public async Task<IActionResult> IyzicoCallback()
     {
+        var isBrowserPost = Request.HasFormContentType;
         string? token;
 
-        if (Request.HasFormContentType)
+        if (isBrowserPost)
         {
-            token = Request.Form["token"].FirstOrDefault();
+            token = (await Request.ReadFormAsync())["token"].FirstOrDefault();
         }
         else
         {
@@ -80,10 +94,26 @@ public class PaymentsController : ControllerBase
         }
 
         if (string.IsNullOrWhiteSpace(token))
+        {
+            if (isBrowserPost)
+                return SeeOther(_frontendUrls.BuildPaymentStatusUrl(null));
+
             return BadRequest(new { message = "Token is required." });
+        }
 
         var result = await _paymentService.HandleIyzicoCallbackAsync(new IyzicoCallbackRequest { Token = token });
+
+        if (isBrowserPost)
+            return SeeOther(_frontendUrls.BuildPaymentStatusUrl(result.PaymentToken));
+
         return Ok(result);
+    }
+
+    /// <summary>303 See Other: tells the browser to follow up the POST with a GET.</summary>
+    private IActionResult SeeOther(string url)
+    {
+        Response.Headers.Location = url;
+        return StatusCode(StatusCodes.Status303SeeOther);
     }
 
     /// <summary>
@@ -94,17 +124,18 @@ public class PaymentsController : ControllerBase
     /// Returns 404 in all other environments so the endpoint does not appear to exist.
     /// NOT for production use — no real payment provider is involved.
     /// </summary>
-    [HttpPatch("{id:int}/simulate-paid")]
-    public async Task<IActionResult> SimulatePaid(int id)
+    [HttpPatch("{paymentToken}/simulate-paid")]
+    public async Task<IActionResult> SimulatePaid(string paymentToken)
     {
         if (!_env.IsDevelopment())
             return NotFound();
 
         try
         {
-            var payment = await _paymentService.MarkPaidAsync(id);
+            var id = await _paymentService.FindIdByPublicTokenAsync(paymentToken);
+            var payment = id.HasValue ? await _paymentService.MarkPaidAsync(id.Value) : null;
             if (payment == null)
-                return NotFound(new { message = $"Payment with id {id} was not found." });
+                return NotFound(new { message = "Payment was not found." });
 
             return Ok(payment);
         }

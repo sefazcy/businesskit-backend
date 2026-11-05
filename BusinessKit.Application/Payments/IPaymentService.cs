@@ -11,8 +11,9 @@ public interface IPaymentService
     Task<PaymentDto?> MarkPaidAsync(int id);
     Task<PaymentDto?> MarkFailedAsync(int id, MarkPaymentFailedDto dto);
     Task<PaymentDto?> MarkRefundedAsync(int id, MarkPaymentRefundedDto dto);
-    Task<PublicPaymentStatusDto?> GetPublicStatusAsync(int id);
-    Task<PaymentCheckoutResponseDto?> CreatePublicCheckoutAsync(int appointmentId);
+    Task<PublicPaymentStatusDto?> GetPublicStatusAsync(string paymentToken);
+    Task<PaymentCheckoutResponseDto?> CreatePublicCheckoutAsync(string appointmentToken);
+    Task<int?> FindIdByPublicTokenAsync(string paymentToken);
     Task<PaymentStatsDto> GetStatsAsync(DateTime? fromDate = null, DateTime? toDate = null);
     Task<PaymentCallbackResult> HandleIyzicoCallbackAsync(IyzicoCallbackRequest request);
 }

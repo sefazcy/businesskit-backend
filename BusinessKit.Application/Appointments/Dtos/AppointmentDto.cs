@@ -3,6 +3,9 @@ namespace BusinessKit.Application.Appointments.Dtos;
 public class AppointmentDto
 {
     public int Id { get; set; }
+
+    /// <summary>Unguessable token the customer uses to start payment (public checkout).</summary>
+    public string PublicToken { get; set; } = string.Empty;
     public int? CustomerId { get; set; }
     public string? CustomerLinkedFullName { get; set; }
     public string CustomerFullName { get; set; } = string.Empty;

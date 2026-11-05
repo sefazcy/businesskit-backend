@@ -52,7 +52,19 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             .IsRequired(false)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.Property(p => p.PublicToken)
+            .IsRequired()
+            .HasMaxLength(64);
+
+        builder.HasIndex(p => p.PublicToken).IsUnique();
+
         builder.HasIndex(p => p.AppointmentId);
+
+        // At most one Pending payment per appointment. Enforced by the database so
+        // concurrent checkout requests cannot create duplicate Pending payments.
+        builder.HasIndex(p => p.AppointmentId, "IX_Payments_AppointmentId_SinglePending")
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Pending'");
         builder.HasIndex(p => p.CustomerId);
         builder.HasIndex(p => p.Status);
         builder.HasIndex(p => p.ProviderPaymentId);

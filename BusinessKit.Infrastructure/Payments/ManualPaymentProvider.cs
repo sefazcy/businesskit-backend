@@ -13,7 +13,9 @@ public class ManualPaymentProvider : IPaymentProvider
         {
             IsSuccess = true,
             Provider = ProviderName,
-            CheckoutUrl = $"http://localhost:5174/payment-status/{request.PaymentId}",
+            // No external payment page for manual payments — point to the public status page
+            // (built by PaymentService from FrontendUrls + the payment's public token).
+            CheckoutUrl = string.IsNullOrWhiteSpace(request.ReturnUrl) ? null : request.ReturnUrl,
         });
 
     public Task<PaymentStatusResult> GetPaymentStatusAsync(string providerPaymentId)

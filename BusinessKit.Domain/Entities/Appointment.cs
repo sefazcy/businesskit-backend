@@ -2,6 +2,9 @@ namespace BusinessKit.Domain.Entities;
 
 public class Appointment : BaseEntity
 {
+    /// <summary>Unguessable id returned to the customer at booking; used to start payment.</summary>
+    public string PublicToken { get; set; } = PublicTokens.New();
+
     public string CustomerFullName { get; set; } = string.Empty;
     public string? CustomerEmail { get; set; }
     public string CustomerPhone { get; set; } = string.Empty;

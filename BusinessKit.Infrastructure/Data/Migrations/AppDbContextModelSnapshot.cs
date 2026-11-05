@@ -15,7 +15,7 @@ namespace BusinessKit.Infrastructure.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.28");
+            modelBuilder.HasAnnotation("ProductVersion", "8.0.33");
 
             modelBuilder.Entity("BusinessKit.Domain.Entities.ApartmentUnit", b =>
                 {
@@ -117,6 +117,11 @@ namespace BusinessKit.Infrastructure.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PublicToken")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("RequestedDate")
                         .HasColumnType("TEXT");
 
@@ -143,6 +148,9 @@ namespace BusinessKit.Infrastructure.Data.Migrations
                     b.HasIndex("BusinessServiceId");
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("PublicToken")
+                        .IsUnique();
 
                     b.HasIndex("RequestedDate");
 
@@ -602,6 +610,11 @@ namespace BusinessKit.Infrastructure.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PublicToken")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("RefundedAt")
                         .HasColumnType("TEXT");
 
@@ -621,7 +634,14 @@ namespace BusinessKit.Infrastructure.Data.Migrations
 
                     b.HasIndex("ProviderPaymentId");
 
+                    b.HasIndex("PublicToken")
+                        .IsUnique();
+
                     b.HasIndex("Status");
+
+                    b.HasIndex(new[] { "AppointmentId" }, "IX_Payments_AppointmentId_SinglePending")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Pending'");
 
                     b.ToTable("Payments", (string)null);
                 });

@@ -2,6 +2,8 @@ namespace BusinessKit.Application.Payments.Dtos;
 
 public class PaymentCheckoutResponseDto
 {
+    /// <summary>Use this for the public status page / API. PaymentId is for display only.</summary>
+    public string PaymentToken { get; set; } = string.Empty;
     public int PaymentId { get; set; }
     public int AppointmentId { get; set; }
     public decimal Amount { get; set; }

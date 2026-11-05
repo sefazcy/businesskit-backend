@@ -611,6 +611,7 @@ public class AppointmentService : IAppointmentService
     private static AppointmentDto MapToDto(Appointment a) => new()
     {
         Id = a.Id,
+        PublicToken = a.PublicToken,
         CustomerId = a.CustomerId,
         CustomerLinkedFullName = a.Customer?.FullName,
         CustomerFullName = a.CustomerFullName,

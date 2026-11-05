@@ -2,6 +2,9 @@ namespace BusinessKit.Domain.Entities;
 
 public class Payment : BaseEntity
 {
+    /// <summary>Unguessable id used by public endpoints and links (never the numeric Id).</summary>
+    public string PublicToken { get; set; } = PublicTokens.New();
+
     public int AppointmentId { get; set; }
     public Appointment Appointment { get; set; } = null!;
 
